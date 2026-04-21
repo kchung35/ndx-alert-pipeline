@@ -57,6 +57,20 @@ streamlit run src/dashboard.py
 Subsequent runs for the same date re-read cached chains / Form 4s and
 take ~2 minutes.
 
+## Preview the dashboard without running anything
+
+A static snapshot of the dashboard ships with the repo:
+[`NDX Alert Desk.html`](NDX%20Alert%20Desk.html). Double-click the file to
+open it in any browser — no Python, no data fetch, no Streamlit.
+
+Use this for:
+- a quick look at the design / aesthetic before installing anything
+- sharing a screenshot-style demo with the professor or a teammate
+- verifying in your browser that fonts and colors render correctly
+
+For the **live** interactive dashboard (real data, drill-down, filters),
+run `streamlit run src/dashboard.py` after completing the Quickstart.
+
 ## What the alerts mean
 
 The pipeline assigns each of the 100 tickers to one of six tiers:
