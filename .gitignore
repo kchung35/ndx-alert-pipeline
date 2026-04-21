@@ -1,0 +1,32 @@
+# Generated data outputs (regenerable via `python3 run_daily.py`)
+data/*.parquet
+data/chains/
+data/form4/
+data/alerts/
+data/factors/
+data/options_signals/
+data/insider_signals/
+
+# Keep the seed JSONs committed so first-run works offline:
+# data/constituents_ndx100.json
+# data/market_caps_ndx100.json
+# data/sec_company_tickers_cache.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+.env.local
+
+# Runtime logs
+logs/*.log

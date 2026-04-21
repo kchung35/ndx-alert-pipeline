@@ -1,0 +1,16 @@
+# NDX 100 · Factor × Options × Insider Alert Workflow
+# Python 3.13+ expected
+#
+# Already present in user env: numpy, pandas, requests, yfinance, scipy(?)
+# New deps for this project:
+
+yfinance>=1.2.0
+pandas>=2.0
+numpy>=1.26
+requests>=2.30
+lxml>=5.0
+pyarrow>=15.0
+scipy>=1.11
+backtrader>=1.9.78
+streamlit>=1.30
+plotly>=5.18
