@@ -28,23 +28,34 @@ See [workflow-1.png](workflow-1.png) for the original design diagram.
 ## Quickstart
 
 ```bash
-# 1. Python 3.13+ required (or 3.11 / 3.12 should work)
+# 1. Clone the repo
+git clone https://github.com/kchung35/ndx-alert-pipeline.git
+cd ndx-alert-pipeline
+
+# 2. Create an isolated Python environment (any of these works)
+python3 -m venv .venv && source .venv/bin/activate    # macOS / Linux
+#   OR on Windows PowerShell:
+#   py -m venv .venv ; .venv\Scripts\Activate.ps1
+
+# 3. Install dependencies (Python 3.11 / 3.12 / 3.13)
 pip install -r requirements.txt
 
-# 2. SEC requires a User-Agent with contact info for the EDGAR REST API
-export SEC_USER_AGENT="Your Name your@email.com"
+# 4. SEC requires a User-Agent with contact info for the EDGAR REST API
+export SEC_USER_AGENT="Your Name your@email.com"       # macOS / Linux
+#   OR on Windows PowerShell:
+#   $env:SEC_USER_AGENT = "Your Name your@email.com"
 
-# 3. Run the full daily pipeline (takes ~1 hour on first run because
+# 5. Run the full daily pipeline (takes ~1 hour on first run because
 #    EDGAR's rate limit is 10 req/s and we pull all Form 4 filings).
 python3 run_daily.py
 
-# 4. Open the institutional dashboard
+# 6. Open the institutional dashboard
 streamlit run src/dashboard.py
 # -> http://localhost:8501
 ```
 
-Subsequent daily runs are ~10 min since only the delta of new Form 4
-filings needs to be fetched.
+Subsequent runs for the same date re-read cached chains / Form 4s and
+take ~2 minutes.
 
 ## What the alerts mean
 
