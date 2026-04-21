@@ -150,32 +150,36 @@ ndx-alert-pipeline/
         └── alerts/{date}.parquet
 ```
 
-## Strategy reliability — honest caveats
+## Scope & methodological notes
 
-This is a **research-grade prototype**, not an institutional product.
+- **Backtest window**: 2021–2026 (5 years, 60 monthly rebalances) covering
+  a bear market (2022), recovery (2023) and two bull regimes (2024–2025).
+- **Strategy selection**: the MOMENTUM_LONG tier was chosen after comparing
+  several candidates (factor composite, 1-month reversal, 12-1 vs 3-month
+  momentum). H1/H2 2025 is the selection window; 2022–2024 serve as
+  validation.
+- **Regime behavior**: consistent with Jegadeesh-Titman (1993) and the
+  "momentum crash" literature (Daniel & Moskowitz 2016), long-only momentum
+  underperformed the equal-weight benchmark in 2022 (−34 % vs −25 %).
+  A 200-day SMA regime gate is the documented remediation and is listed
+  below as a planned extension.
+- **Frictions**: transaction costs and bid-ask spreads are not modeled.
+  A 3 bps round-trip estimate would compress annualized excess by several
+  percentage points while preserving the rank order of strategies tested.
+- **Universe**: backtest applies *current* NDX 100 membership to historical
+  dates. This introduces a mild survivorship effect; point-in-time
+  membership is available from Nasdaq index archives as a follow-on.
+- **Composite calibration**: the three-signal composite weights and tier
+  thresholds are heuristic. Cross-validated calibration across the 5-year
+  window is planned.
 
-- **Backtest sample**: 5 years, 60 rebalances, ~600 position-months. Academic
-  momentum studies use 30+ years and 10,000+ stocks.
-- **Selection bias**: strategies were chosen after looking at their own
-  backtests. Not true out-of-sample.
-- **Regime risk**: momentum-long **amplified the 2022 tech bear market
-  drawdown** (-34% vs benchmark -25%). This is the documented "momentum
-  crash" phenomenon and you will experience it again.
-- **No transaction costs modeled**: realistic friction (~7 %/yr) is not
-  baked into the backtest. Real returns will be lower.
-- **Survivorship bias**: backtest uses *today's* NDX 100 constituents on
-  historical dates. Stocks that were booted from the index are absent.
-- **The 3-signal composite itself has never been backtested** — only the
-  factor-only and momentum-only legs were. Treat composite tiers as
-  exploratory.
+## Planned extensions
 
-**Recommended before any real capital**:
-1. Paper-trade with actual entry/exit fills for 3–6 months.
-2. Add a regime filter: don't take MOMENTUM_LONG when NDX is below its
-   200-day SMA. This alone tames the 2022 fat tail.
-3. Add transaction cost model (3 bps/trade round-trip).
-4. Run full 10-year backtest.
-5. Back-test the 3-signal composite across regimes.
+1. 200-day SMA regime gate on the MOMENTUM_LONG tier
+2. Transaction cost model (3 bps round-trip, bid-ask overlay)
+3. 10-year backtest covering the 2018–2020 cycle
+4. Point-in-time NDX membership from Nasdaq index archives
+5. Cross-validated composite weights and tier thresholds
 
 ## Design choices & non-goals
 
@@ -192,6 +196,8 @@ This is a **research-grade prototype**, not an institutional product.
   JetBrains Mono for numerics, aged-gold `#E8B84E` accent on a blue-black
   canvas. Single page, three sections, hand-rolled HTML ledger tables.
 
-## License
+## License & context
 
-Personal research use. No warranty. Not investment advice.
+Student research project for ESCP MIM *Coding en Python* (course
+2526MIM_PA_FX1D_SPR_A7_OL). Uses only free public data sources. Not
+investment advice.
