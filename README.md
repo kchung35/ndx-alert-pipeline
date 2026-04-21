@@ -111,9 +111,6 @@ section before committing real capital.
 # Unit tests (should be 68 passing)
 python3 -m pytest tests/ -v
 
-# Data-source sanity check (27/30 should PASS depending on yfinance state)
-python3 test_data_availability.py
-
 # 5-year multi-regime backtest validation of MOMENTUM_LONG
 python3 tests/validate_momentum_5y.py
 
@@ -129,9 +126,11 @@ ndx-alert-pipeline/
 ├── requirements.txt
 ├── .gitignore
 ├── run_daily.py                      # daily orchestrator
-├── test_data_availability.py         # standalone sanity check for the 3 data sources
-├── check_yfinance_20d_oi.py          # deeper diagnostic on yfinance options schema
-├── workflow-[1-3].png                # architecture diagrams
+├── workflow-1.png                    # original architecture diagram
+│                                     # (the "OI vs 20d avg" node shown is replaced
+│                                     #  by six live single-snapshot metrics — see
+│                                     #  src/options_signals.py)
+├── NDX Alert Desk.html               # static dashboard preview (real parquet data baked in)
 ├── src/
 │   ├── universe.py                   # NDX 100 constituent resolver (cached + Wikipedia fallback)
 │   ├── data_prices.py                # yfinance OHLCV + fundamentals + VIX

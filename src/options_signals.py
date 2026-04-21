@@ -1,16 +1,19 @@
-"""First-principles options signal (NDX 100, single snapshot).
+"""Single-snapshot options signal for NDX 100 cross-section.
 
-Replaces the original "OI vs 20d avg" sub-signal with six cross-sectionally
-z-scored metrics computable from today's yfinance chain alone. Universe
-normalization substitutes for per-ticker history.
+Six metrics computed from today's yfinance option chain and z-scored
+cross-sectionally across the universe. No historical OI required.
 
-Metrics (ATM +/- 20% strikes, nearest two expiries):
-    vol_oi_call = sum(call volume) / sum(call OI)
-    vol_oi_put  = sum(put volume) / sum(put OI)
-    flow_ratio  = sum(call vol * mid) / sum(total vol * mid)   ; dollar-weighted
-    iv_skew     = 25D-put IV - 25D-call IV  (nearest OTM proxy)
-    iv_term     = 30d ATM IV / 90d ATM IV
-    iv_rel_vix  = ATM IV / VIX(today)
+    Band     : ATM +/- 15 % strikes, nearest two expiries
+    Filters  : DTE >= 7 (skip near-expiry noise)
+               OI > 0 at the contract level (drop never-traded strikes)
+               IV > 5 % for the IV metrics (drop stale / zero quotes)
+
+    vol_oi_call : sum call volume / sum call OI   (fresh positioning, calls)
+    vol_oi_put  : sum put volume  / sum put OI    (fresh positioning, puts)
+    flow_ratio  : dollar-weighted call vol / total vol
+    iv_skew     : 25D-put IV - 25D-call IV (nearest-strike OTM proxy)
+    iv_term     : 30d ATM IV / 90d ATM IV  (term structure inversion)
+    iv_rel_vix  : stock ATM IV / VIX       (idio vol vs market)
 
 Composite options_score (signed, gridsearchable weights):
     0.30 * z(flow_ratio)

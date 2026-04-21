@@ -392,7 +392,7 @@ if ticker:
     # 2 x 2 grid: price | factors  /  options | insiders
     grid_r1_c1, grid_r1_c2 = st.columns(2)
 
-    # ── Price + 20d holding overlay ──────────────────────────────────
+    # ── Price chart (1y adj close + 50-day SMA) ──────────────────────
     with grid_r1_c1:
         st.markdown("<h3>Price · 1Y</h3>", unsafe_allow_html=True)
         prices = _load_prices()
