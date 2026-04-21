@@ -10,20 +10,49 @@ data library). No paid feeds. No portfolio concepts. No cross-dependencies.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    U([universe.py])
+
+    U --> DP([data_prices.py])
+    U --> DO([data_options.py])
+    U --> DE([data_edgar.py])
+    U --> DFF([data_ff.py])
+
+    DP --> F([factors.py])
+    DO --> OS([options_signals.py])
+    DE --> IS([insider_signals.py])
+    DFF --> F
+
+    F  --> AE([alert_engine.py])
+    OS --> AE
+    IS --> AE
+
+    AE --> ALERTS[("alerts/YYYY-MM-DD.parquet")]
+    ALERTS --> DB([dashboard.py · Streamlit])
+
+    DP -.-> BT([backtest.py])
+    DP -.-> RSK([risk.py · VaR / CVaR])
 ```
- universe.py ──► data_prices.py ──► factors.py ───────────────┐
-        │                                                      │
-        ├──► data_options.py ──► options_signals.py ───────────┤
-        │                                                      ├─► alert_engine.py ─► alerts/{date}.parquet
-        ├──► data_edgar.py   ──► insider_signals.py ───────────┤                         │
-        │                                                      │                         ▼
-        └──► data_ff.py      ──► factors.py (FF overlay) ──────┘                   dashboard.py (Streamlit)
-                                                                                         │
-                                                              backtest.py  ◄─── prices ──┘
-                                                              risk.py (VaR / CVaR)
+
+Plain-text fallback (ASCII only, aligns in any monospace viewer):
+
+```
+universe.py  +--> data_prices.py  --> factors.py --------+
+             |                                           |
+             +--> data_options.py --> options_signals.py +
+             |                                           +--> alert_engine.py --> alerts/YYYY-MM-DD.parquet
+             +--> data_edgar.py   --> insider_signals.py +                           |
+             |                                           |                           v
+             +--> data_ff.py      --> factors.py (FF) ---+                    dashboard.py (Streamlit)
+
+             prices  --> backtest.py
+                     --> risk.py (VaR / CVaR)
 ```
 
 See [workflow-1.png](workflow-1.png) for the original design diagram.
+(The "OI vs 20d avg" node shown there is replaced by six live single-snapshot
+metrics — see [src/options_signals.py](src/options_signals.py).)
 
 ## Quickstart
 
