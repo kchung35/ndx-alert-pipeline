@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NDX · Alert Desk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* NDX Alert Desk — institutional dashboard stylesheet.
+   Token system lifted from src/lifted/ui_style.py ("Deep Trading"). */
+
+:root {
+  --bg-base:      #0A0C10;
+  --bg-surface-1: #12151C;
+  --bg-surface-2: #1A1E27;
+  --bg-surface-3: #242834;
+  --accent:       #E8B84E;
+  --accent-soft:  #8A6B1F;
+  --accent-hover: #F0C968;
+  --positive:     #5FB98A;
+  --negative:     #E06868;
+  --warning:      #E8B84E;
+  --neutral:      #8C92A3;
+  --text-primary: #F0F1F5;
+  --text-secondary:#B4B9C6;
+  --text-muted:   #6B7182;
+  --border-subtle:#1E2230;
+  --border-default:#2D3240;
+  --border-strong:#3D4356;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  min-height: 100vh;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(232,184,78,0.018), transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(95,185,138,0.014), transparent 50%);
+}
+
+.container {
+  position: relative; z-index: 1;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 1.2rem 1.8rem 3rem 1.8rem;
+}
+
+/* ── Type ───────────────────────────────────────────────────── */
+h1, h2, h3, h4 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  font-variation-settings: 'opsz' 96;
+}
+h2 {
+  font-size: 1.35rem; margin: 2rem 0 0.6rem 0;
+  padding-top: 1rem; border-top: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+h3 {
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  font-family: 'IBM Plex Sans', sans-serif;
+  margin: 1.2rem 0 0.8rem 0;
+}
+code, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+/* ── Masthead ───────────────────────────────────────────────── */
+.masthead {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 0 0 0.9rem 0; margin: -0.2rem 0 1.4rem 0;
+  border-bottom: 1px solid var(--accent-soft);
+  position: relative;
+}
+.masthead::after {
+  content: ''; position: absolute;
+  left: 0; right: 0; bottom: -3px; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+  opacity: 0.25;
+}
+.masthead__brand {
+  font-family: 'Fraunces', serif;
+  font-size: 2.2rem; font-weight: 600;
+  letter-spacing: -0.02em; line-height: 1;
+  font-variation-settings: 'opsz' 144;
+  color: var(--text-primary);
+}
+.masthead__brand .ticker { color: var(--accent); font-style: italic; }
+.masthead__brand .sep { color: var(--text-muted); font-weight: 400; margin: 0 0.35em; }
+.masthead__tagline {
+  font-size: 0.72rem; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.25em; margin-top: 0.35rem;
+}
+.masthead__meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; color: var(--text-secondary);
+  text-align: right; line-height: 1.65;
+}
+.masthead__meta .label {
+  color: var(--text-muted); letter-spacing: 0.15em;
+  text-transform: uppercase; font-size: 0.62rem; margin-right: 0.4rem;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.masthead__meta .val { color: var(--text-primary); }
+.masthead__meta .val.accent { color: var(--accent); }
+
+/* ── Section numerals ───────────────────────────────────────── */
+.section-num {
+  font-family: 'Fraunces', serif; font-style: italic;
+  font-size: 0.85rem; color: var(--accent);
+  margin-right: 0.6rem; vertical-align: 0.2em;
+}
+
+/* ── KPI strip ──────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.9rem; margin-top: 0.4rem;
+}
+.kpi {
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--accent-soft);
+  padding: 0.9rem 1.1rem 0.75rem 1.1rem;
+  border-radius: 2px;
+  position: relative; overflow: hidden;
+}
+.kpi__label {
+  font-size: 0.6rem; text-transform: uppercase;
+  letter-spacing: 0.15em; color: var(--text-muted);
+}
+.kpi__value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.6rem; color: var(--text-primary);
+  margin-top: 0.3rem; letter-spacing: -0.01em;
+}
+.kpi__delta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; margin-top: 0.15rem;
+  color: var(--text-muted);
+}
+.kpi__delta.pos { color: var(--positive); }
+.kpi__delta.neg { color: var(--negative); }
+
+/* ── Filter bar ─────────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 1rem;
+  margin: 0.4rem 0 0.9rem 0; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 20;
+  background: var(--bg-base);
+  padding: 0.55rem 0.2rem 0.6rem 0.2rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.jump-link {
+  float: right;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.7rem; font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--accent-soft);
+  padding: 0.35rem 0.7rem; border-radius: 3px;
+  margin-top: 0.35rem;
+  transition: background 0.12s, color 0.12s;
+}
+.jump-link:hover {
+  background: var(--accent); color: var(--bg-base);
+}
+.viewnav {
+  display: flex; gap: 0; margin: 0.2rem 0 0.6rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky; top: 0; z-index: 30;
+  background: var(--bg-base);
+}
+.viewnav__tab {
+  background: transparent; border: 0;
+  color: var(--text-muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.82rem; font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.85rem 1.3rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+.viewnav__tab:hover { color: var(--text-secondary); }
+.viewnav__tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+.viewnav__num {
+  font-family: 'Fraunces', serif; font-style: italic;
+  color: var(--accent); font-size: 0.78rem;
+}
+.viewnav__sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; color: var(--text-muted);
+  font-weight: 400; letter-spacing: 0;
+}
+.viewnav__tab.active .viewnav__sub { color: var(--accent); }
+.tool-label {
+  font-size: 0.6rem; text-transform: uppercase;
+  letter-spacing: 0.18em; color: var(--text-muted); margin-right: 0.3rem;
+}
+.select, .number-input {
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 2px;
+  outline: none; cursor: pointer;
+}
+.select:hover, .number-input:hover { border-color: var(--border-strong); }
+.select:focus, .number-input:focus { border-color: var(--accent); }
+
+.seg {
+  display: inline-flex; background: var(--bg-surface-1);
+  border: 1px solid var(--border-default); border-radius: 2px;
+  overflow: hidden;
+}
+.seg button {
+  background: transparent; border: 0;
+  padding: 0.45rem 0.85rem;
+  color: var(--text-secondary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+  cursor: pointer; border-right: 1px solid var(--border-default);
+  transition: color 0.15s, background 0.15s;
+}
+.seg button:last-child { border-right: 0; }
+.seg button:hover { color: var(--text-primary); }
+.seg button.active {
+  background: var(--accent); color: var(--bg-base);
+}
+
+.search {
+  flex: 1; min-width: 220px; max-width: 320px;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.7rem 0.4rem 2rem;
+  border-radius: 2px; outline: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B7182' stroke-width='2'><circle cx='11' cy='11' r='7'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>");
+  background-repeat: no-repeat; background-position: 0.6rem center;
+}
+
+/* ── Ledger table ───────────────────────────────────────────── */
+.panel {
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px; overflow: hidden;
+  background: var(--bg-surface-1);
+}
+table.ledger {
+  width: 100%; border-collapse: collapse;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+table.ledger thead th {
+  text-align: left;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.6rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky; top: 0; z-index: 1;
+  user-select: none;
+}
+table.ledger thead th.sortable { cursor: pointer; }
+table.ledger thead th.sortable:hover { color: var(--accent); }
+table.ledger thead th .sort-ind {
+  display: inline-block; width: 10px; color: var(--accent);
+}
+table.ledger tbody tr {
+  cursor: pointer; transition: background 0.1s;
+}
+table.ledger tbody tr:hover {
+  background: var(--bg-surface-2);
+}
+table.ledger tbody tr.selected {
+  background: rgba(232,184,78,0.06);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+table.ledger tbody td {
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+  font-size: 0.85rem;
+}
+td.mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: 'tnum' 1;
+}
+td.ticker-cell {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600; font-size: 0.92rem;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+td .sector {
+  font-size: 0.7rem; color: var(--text-muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 400; margin-top: 1px;
+}
+td.company {
+  color: var(--text-secondary);
+  max-width: 210px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+td.rationale {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem; color: var(--text-secondary);
+}
+td.composite {
+  text-align: right; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+}
+td.composite.pos { color: var(--positive); }
+td.composite.neg { color: var(--negative); }
+
+/* ── Tier chips ─────────────────────────────────────────────── */
+.tier-chip {
+  display: inline-block;
+  padding: 0.12rem 0.55rem; border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid; white-space: nowrap;
+}
+.tier-chip--bull {
+  color: var(--positive); border-color: rgba(95,185,138,0.4);
+  background: rgba(95,185,138,0.08);
+  box-shadow: inset 0 0 8px rgba(95,185,138,0.13);
+}
+.tier-chip--bear {
+  color: var(--negative); border-color: rgba(224,104,104,0.4);
+  background: rgba(224,104,104,0.08);
+  box-shadow: inset 0 0 8px rgba(224,104,104,0.13);
+}
+.tier-chip--none {
+  color: var(--text-muted); border-color: var(--border-default);
+  background: transparent;
+}
+
+/* ── Micro-bar (inline SVG container) ───────────────────────── */
+.bar-wrap { display: inline-flex; align-items: center; gap: 0.45rem; }
+.bar-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; color: var(--text-secondary);
+  min-width: 2.6em; text-align: right;
+}
+
+/* ── Deep Dive grid ─────────────────────────────────────────── */
+.ticker-strip {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 0.6rem 0 1rem 0; border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 1.2rem;
+}
+.ticker-strip__left .sym {
+  font-family: 'Fraunces', serif;
+  font-size: 1.9rem; font-weight: 500;
+  color: var(--accent); letter-spacing: -0.01em; line-height: 1;
+}
+.ticker-strip__left .co {
+  font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.3rem;
+}
+.ticker-strip__left .co .dot { color: var(--text-muted); margin: 0 0.3em; }
+.ticker-strip__right {
+  text-align: right; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+}
+.ticker-strip__right .label {
+  color: var(--text-muted); font-size: 0.6rem;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  margin-right: 0.35rem;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.grid2 {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+.card {
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  padding: 1rem 1.1rem 1rem 1.1rem;
+  min-height: 320px;
+}
+.card h3 { margin-top: 0; margin-bottom: 0.9rem; }
+.card__meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; color: var(--text-muted);
+  margin-top: 0.6rem;
+}
+.card__meta .hi { color: var(--text-primary); }
+
+/* ── Heatmap ────────────────────────────────────────────────── */
+table.heatmap {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+}
+table.heatmap th, table.heatmap td {
+  padding: 4px 6px; text-align: center;
+  border: 1px solid rgba(45,50,64,0.45);
+}
+table.heatmap thead th {
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  font-weight: 500; letter-spacing: 0.05em;
+}
+table.heatmap tbody td.strike {
+  color: var(--text-muted); text-align: right;
+  background: var(--bg-surface-2);
+  font-weight: 500; padding-right: 8px;
+  border-right: 1px solid var(--border-default);
+}
+table.heatmap tbody td.cell {
+  color: var(--text-primary);
+  transition: filter 0.1s;
+}
+table.heatmap tbody td.cell.atm {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+/* ── Factor bars ────────────────────────────────────────────── */
+.factor-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 50px;
+  align-items: center; gap: 0.7rem;
+  padding: 0.35rem 0;
+}
+.factor-row .lbl {
+  font-size: 0.78rem; color: var(--text-secondary);
+}
+.factor-row .val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem; text-align: right;
+}
+.factor-row .val.pos { color: var(--positive); }
+.factor-row .val.neg { color: var(--negative); }
+.factor-bar {
+  position: relative; height: 16px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1px;
+}
+.factor-bar::before {
+  content: ''; position: absolute;
+  left: 50%; top: 0; bottom: 0; width: 1px;
+  background: var(--border-default); opacity: 0.8;
+}
+.factor-bar span {
+  position: absolute; top: 2px; bottom: 2px;
+  background: var(--positive);
+  opacity: 0.78;
+  transition: width 0.4s;
+}
+.factor-bar span.neg { background: var(--negative); }
+
+/* ── Form 4 table ───────────────────────────────────────────── */
+.f4-scroll { max-height: 340px; overflow-y: auto; }
+table.f4 {
+  width: 100%; border-collapse: collapse;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+table.f4 thead th {
+  text-align: left; padding: 0.3rem 0.6rem;
+  font-size: 0.55rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky; top: 0;
+}
+table.f4 tbody td {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.76rem;
+}
+table.f4 tbody td.name {
+  max-width: 140px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-primary);
+}
+table.f4 td.mono { font-size: 0.72rem; color: var(--text-secondary); }
+.sig-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.06em;
+}
+.sig-code.pos { color: var(--positive); }
+.sig-code.neg { color: var(--negative); }
+
+/* ── Pills / rationale badges ───────────────────────────────── */
+.pill {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  margin-right: 0.3rem; border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.66rem;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  background: var(--bg-surface-2);
+}
+.pill.pos { color: var(--positive); border-color: rgba(95,185,138,0.35); }
+.pill.neg { color: var(--negative); border-color: rgba(224,104,104,0.35); }
+.pill.warn { color: var(--accent); border-color: rgba(232,184,78,0.35); }
+
+/* ── Constellation scatter ──────────────────────────────────── */
+.const-wrap {
+  position: relative;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  padding: 1rem 1.1rem 0.9rem 1.1rem;
+}
+.scatter-axes {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.quadrant-legend {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1rem; margin-top: 0.6rem; padding: 0 0.2rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem; color: var(--text-muted);
+}
+.quadrant-legend .pill { margin-right: 0.4rem; }
+
+/* ── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ── Tweaks panel ───────────────────────────────────────────── */
+.tweaks {
+  position: fixed; right: 1.5rem; bottom: 1.5rem;
+  width: 272px; z-index: 100;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--border-default);
+  border-top: 2px solid var(--accent);
+  border-radius: 2px;
+  padding: 0.9rem 1rem;
+  display: none;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.tweaks.open { display: block; }
+.tweaks h4 {
+  margin: 0 0 0.7rem 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.62rem; letter-spacing: 0.22em; color: var(--accent);
+  text-transform: uppercase; font-weight: 600;
+}
+.tweaks .row {
+  margin-bottom: 0.7rem;
+}
+.tweaks label {
+  display: block; font-size: 0.6rem;
+  color: var(--text-muted); letter-spacing: 0.15em;
+  text-transform: uppercase; margin-bottom: 0.25rem;
+}
+.tweaks .swatches {
+  display: flex; gap: 0.4rem;
+}
+.tweaks .swatch {
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; border: 2px solid transparent;
+}
+.tweaks .swatch.active { border-color: var(--text-primary); }
+.tweaks select, .tweaks input[type="number"] {
+  width: 100%; background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  border: 1px solid var(--border-default);
+  border-radius: 2px; padding: 0.35rem 0.5rem;
+}
+
+@media (max-width: 960px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid2 { grid-template-columns: 1fr; }
+  .quadrant-legend { grid-template-columns: 1fr 1fr; }
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Masthead -->
+  <div class="masthead">
+    <div>
+      <div class="masthead__brand">
+        <span class="ticker">NDX</span><span class="sep">·</span>Alert Desk
+      </div>
+      <div class="masthead__tagline">
+        Factor &nbsp;·&nbsp; Options flow &nbsp;·&nbsp; Insider transactions
+      </div>
+    </div>
+    <div class="masthead__meta">
+      <div><span class="label">As-of</span>
+        <select id="dateSelect" class="select" style="display:inline-block;margin-left:0.2rem;padding:0.2rem 0.5rem;font-size:0.72rem;"></select>
+      </div>
+      <div><span class="label">Generated</span>
+           <span class="val" id="genTime"></span></div>
+      <div><span class="label">Universe</span>
+           <span class="val" id="universeCount">—</span></div>
+    </div>
+  </div>
+
+  <!-- View navigation -->
+  <nav class="viewnav" role="tablist">
+    <button class="viewnav__tab active" data-view="ledger" role="tab"><span class="viewnav__num">01</span>Alert ledger</button>
+    <button class="viewnav__tab" data-view="deepdive" role="tab"><span class="viewnav__num">02</span>Ticker deep dive <span class="viewnav__sub" id="navTickerHint"></span></button>
+    <button class="viewnav__tab" data-view="universe" role="tab"><span class="viewnav__num">03</span>Universe constellation</button>
+  </nav>
+
+  <!-- KPI strip -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- 01 Alert Ledger -->
+  <section class="view view--ledger" data-view="ledger">
+  <h2 id="ledgerSection"><span class="section-num">01</span>Alert ledger</h2>
+  <div class="toolbar">
+    <div class="seg" id="tierFilter">
+      <button data-tier="all" class="active">All</button>
+      <button data-tier="long">Long only</button>
+      <button data-tier="short">Short only</button>
+      <button data-tier="alerts">Alerts only</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <span class="tool-label">Top N</span>
+      <input id="topN" type="number" min="5" max="100" value="25" step="5" class="number-input" style="width:74px">
+    </div>
+    <input id="search" type="text" class="search" placeholder="search ticker or company...">
+  </div>
+  <div class="panel" style="overflow-x:auto">
+    <table class="ledger" id="ledger">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Ticker</th>
+          <th>Company</th>
+          <th class="sortable" data-sort="composite" style="text-align:right">Composite <span class="sort-ind">↓</span></th>
+          <th class="sortable" data-sort="factor_z">Factor z</th>
+          <th class="sortable" data-sort="options_z">Options z</th>
+          <th class="sortable" data-sort="insider_z">Insider z</th>
+          <th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="ledgerFooter" style="font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--text-muted);margin-top:0.5rem;"></div>
+
+  </section>
+
+  <!-- 02 Ticker deep dive -->
+  <section class="view view--deepdive" data-view="deepdive" hidden>
+  <h2 id="deepDiveSection"><span class="section-num">02</span>Ticker deep dive</h2>
+  <div class="ticker-strip" id="tickerStrip"></div>
+  <div class="grid2">
+    <div class="card" id="cardPrice">
+      <h3>Price · 1Y</h3>
+      <div id="priceChart"></div>
+      <div class="card__meta" id="priceMeta"></div>
+    </div>
+    <div class="card" id="cardFactors">
+      <h3>Factor decomposition</h3>
+      <div id="factorBars"></div>
+      <div class="card__meta">Sector-neutralized z-scores  ·  momentum, value, quality, low-vol</div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:1.2rem;">
+    <div class="card" id="cardOptions">
+      <h3>Options · V/OI surface</h3>
+      <div id="optionsSurface"></div>
+      <div class="card__meta">ATM +/-12% band · next 5 expiries · <span class="hi">gold outline</span> = ATM strike</div>
+    </div>
+    <div class="card" id="cardInsiders">
+      <h3>Insiders · Form 4</h3>
+      <div id="insiderTable"></div>
+    </div>
+  </div>
+
+  </section>
+
+  <!-- 03 Constellation -->
+  <section class="view view--universe" data-view="universe" hidden>
+  <h2><span class="section-num">03</span>Universe constellation</h2>
+  <div class="const-wrap">
+    <div id="constellation"></div>
+    <div class="quadrant-legend">
+      <span><span class="pill pos">Q1 ↗</span>positive factor + positive flow → tailwind</span>
+      <span><span class="pill warn">Q2 ↖</span>weak factor, bullish flow → contrarian watch</span>
+      <span><span class="pill neg">Q3 ↙</span>negative factor + bearish flow → short lean</span>
+      <span><span class="pill">Q4 ↘</span>strong factor, bearish flow → divergence</span>
+    </div>
+  </div>
+
+  <div style="margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border-subtle);font-family:'JetBrains Mono',monospace;font-size:0.66rem;color:var(--text-muted);display:flex;justify-content:space-between;">
+    <span>ndx-alert-pipeline · research prototype · no warranty, not investment advice</span>
+    <span>free data: yfinance · SEC EDGAR · Ken French</span>
+  </div>
+  </section>
+
+</div>
+
+<script>window.NDX_UNIVERSE = [{"ticker":"ADBE","company":"Adobe Inc.","sector":"Technology","market_cap":112.7},{"ticker":"AMD","company":"Advanced Micro Devices","sector":"Technology","market_cap":334.8},{"ticker":"ABNB","company":"Airbnb","sector":"Consumer Discretionary","market_cap":81.2},{"ticker":"ALNY","company":"Alnylam Pharmaceuticals","sector":"Health Care","market_cap":42.9},{"ticker":"GOOGL","company":"Alphabet Inc. (Class A)","sector":"Technology","market_cap":3722.9},{"ticker":"GOOG","company":"Alphabet Inc. (Class C)","sector":"Technology","market_cap":3722.9},{"ticker":"AMZN","company":"Amazon","sector":"Consumer Discretionary","market_cap":2305.7},{"ticker":"AEP","company":"American Electric Power","sector":"Utilities","market_cap":72.2},{"ticker":"AMGN","company":"Amgen","sector":"Health Care","market_cap":204},{"ticker":"ADI","company":"Analog Devices","sector":"Technology","market_cap":157.8},{"ticker":"AAPL","company":"Apple Inc.","sector":"Technology","market_cap":3847.2},{"ticker":"AMAT","company":"Applied Materials","sector":"Technology","market_cap":280.9},{"ticker":"APP","company":"AppLovin","sector":"Technology","market_cap":161.1},{"ticker":"ARM","company":"Arm Holdings","sector":"Technology","market_cap":124.9},{"ticker":"ASML","company":"ASML Holding","sector":"Technology","market_cap":533},{"ticker":"TEAM","company":"Atlassian","sector":"Technology","market_cap":20.9},{"ticker":"ADSK","company":"Autodesk","sector":"Technology","market_cap":54.2},{"ticker":"ADP","company":"Automatic Data Processing","sector":"Industrials","market_cap":87.3},{"ticker":"AXON","company":"Axon Enterprise","sector":"Industrials","market_cap":42.9},{"ticker":"BKR","company":"Baker Hughes","sector":"Energy","market_cap":59.2},{"ticker":"BKNG","company":"Booking Holdings","sector":"Consumer Discretionary","market_cap":139.5},{"ticker":"AVGO","company":"Broadcom","sector":"Technology","market_cap":1633.7},{"ticker":"CDNS","company":"Cadence Design Systems","sector":"Technology","market_cap":81.5},{"ticker":"CHTR","company":"Charter Communications","sector":"Telecommunications","market_cap":31.4},{"ticker":"CTAS","company":"Cintas","sector":"Industrials","market_cap":79.1},{"ticker":"CSCO","company":"Cisco","sector":"Telecommunications","market_cap":310.7},{"ticker":"CCEP","company":"Coca-Cola Europacific Partners","sector":"Consumer Staples","market_cap":45.4},{"ticker":"CTSH","company":"Cognizant","sector":"Technology","market_cap":30.2},{"ticker":"CMCSA","company":"Comcast","sector":"Telecommunications","market_cap":111.3},{"ticker":"CEG","company":"Constellation Energy","sector":"Utilities","market_cap":116.4},{"ticker":"CPRT","company":"Copart","sector":"Consumer Discretionary","market_cap":35.2},{"ticker":"CSGP","company":"CoStar Group","sector":"Real Estate","market_cap":19.4},{"ticker":"COST","company":"Costco","sector":"Consumer Discretionary","market_cap":446.4},{"ticker":"CRWD","company":"CrowdStrike","sector":"Technology","market_cap":110.2},{"ticker":"CSX","company":"CSX Corporation","sector":"Industrials","market_cap":76.8},{"ticker":"DDOG","company":"Datadog","sector":"Technology","market_cap":43.5},{"ticker":"DXCM","company":"DexCom","sector":"Health Care","market_cap":26.2},{"ticker":"FANG","company":"Diamondback Energy","sector":"Energy","market_cap":50},{"ticker":"DASH","company":"DoorDash","sector":"Technology","market_cap":74.5},{"ticker":"EA","company":"Electronic Arts","sector":"Consumer Discretionary","market_cap":50.1},{"ticker":"EXC","company":"Exelon","sector":"Utilities","market_cap":50.2},{"ticker":"FAST","company":"Fastenal","sector":"Industrials","market_cap":53.6},{"ticker":"FER","company":"Ferrovial","sector":"Industrials","market_cap":47.5},{"ticker":"FTNT","company":"Fortinet","sector":"Technology","market_cap":62},{"ticker":"GEHC","company":"GE HealthCare","sector":"Health Care","market_cap":33.8},{"ticker":"GILD","company":"Gilead Sciences","sector":"Health Care","market_cap":185.3},{"ticker":"HON","company":"Honeywell","sector":"Industrials","market_cap":155.3},{"ticker":"IDXX","company":"Idexx Laboratories","sector":"Health Care","market_cap":48.5},{"ticker":"INSM","company":"Insmed Incorporated","sector":"Health Care","market_cap":31.4},{"ticker":"INTC","company":"Intel","sector":"Technology","market_cap":236.6},{"ticker":"INTU","company":"Intuit","sector":"Technology","market_cap":126},{"ticker":"ISRG","company":"Intuitive Surgical","sector":"Health Care","market_cap":174},{"ticker":"KDP","company":"Keurig Dr Pepper","sector":"Consumer Staples","market_cap":38.4},{"ticker":"KLAC","company":"KLA Corporation","sector":"Technology","market_cap":193.9},{"ticker":"KHC","company":"Kraft Heinz","sector":"Consumer Staples","market_cap":28.4},{"ticker":"LRCX","company":"Lam Research","sector":"Technology","market_cap":274.6},{"ticker":"LIN","company":"Linde plc","sector":"Basic Materials","market_cap":223.1},{"ticker":"MAR","company":"Marriott International","sector":"Consumer Discretionary","market_cap":87.2},{"ticker":"MRVL","company":"Marvell Technology","sector":"Technology","market_cap":82.1},{"ticker":"MELI","company":"Mercado Libre","sector":"Consumer Discretionary","market_cap":89.7},{"ticker":"META","company":"Meta Platforms","sector":"Technology","market_cap":1665.5},{"ticker":"MCHP","company":"Microchip Technology","sector":"Technology","market_cap":36},{"ticker":"MU","company":"Micron Technology","sector":"Technology","market_cap":463.7},{"ticker":"MSFT","company":"Microsoft","sector":"Technology","market_cap":3012.9},{"ticker":"MSTR","company":"MicroStrategy","sector":"Technology","market_cap":46.6},{"ticker":"MDLZ","company":"Mondelez International","sector":"Consumer Staples","market_cap":73.6},{"ticker":"MPWR","company":"Monolithic Power Systems","sector":"Technology","market_cap":53.4},{"ticker":"MNST","company":"Monster Beverage","sector":"Consumer Staples","market_cap":75.9},{"ticker":"NFLX","company":"Netflix, Inc.","sector":"Consumer Discretionary","market_cap":409.3},{"ticker":"NVDA","company":"Nvidia","sector":"Technology","market_cap":4506.4},{"ticker":"NXPI","company":"NXP Semiconductors","sector":"Technology","market_cap":51.9},{"ticker":"ORLY","company":"O'Reilly Automotive","sector":"Consumer Discretionary","market_cap":79.9},{"ticker":"ODFL","company":"Old Dominion Freight Line","sector":"Industrials","market_cap":41.2},{"ticker":"PCAR","company":"Paccar","sector":"Consumer Discretionary","market_cap":63.3},{"ticker":"PLTR","company":"Palantir Technologies","sector":"Technology","market_cap":363.6},{"ticker":"PANW","company":"Palo Alto Networks","sector":"Technology","market_cap":134.5},{"ticker":"PAYX","company":"Paychex","sector":"Industrials","market_cap":34.3},{"ticker":"PYPL","company":"PayPal","sector":"Industrials","market_cap":41.8},{"ticker":"PDD","company":"PDD Holdings","sector":"Technology","market_cap":145.7},{"ticker":"PEP","company":"PepsiCo","sector":"Consumer Staples","market_cap":222.4},{"ticker":"QCOM","company":"Qualcomm","sector":"Technology","market_cap":145.6},{"ticker":"REGN","company":"Regeneron Pharmaceuticals","sector":"Health Care","market_cap":82.4},{"ticker":"ROP","company":"Roper Technologies","sector":"Technology","market_cap":36.4},{"ticker":"ROST","company":"Ross Stores","sector":"Consumer Discretionary","market_cap":69.8},{"ticker":"STX","company":"Seagate Technology","sector":"Technology","market_cap":83.9},{"ticker":"SHOP","company":"Shopify","sector":"Technology","market_cap":174.2},{"ticker":"SBUX","company":"Starbucks","sector":"Consumer Discretionary","market_cap":115},{"ticker":"SNPS","company":"Synopsys","sector":"Technology","market_cap":83.5},{"ticker":"TMUS","company":"T-Mobile US","sector":"Telecommunications","market_cap":240.7},{"ticker":"TTWO","company":"Take-Two Interactive","sector":"Consumer Discretionary","market_cap":39.3},{"ticker":"TSLA","company":"Tesla, Inc.","sector":"Consumer Discretionary","market_cap":1506.7},{"ticker":"TXN","company":"Texas Instruments","sector":"Technology","market_cap":181.7},{"ticker":"TRI","company":"Thomson Reuters","sector":"Technology","market_cap":49.6},{"ticker":"VRSK","company":"Verisk Analytics","sector":"Industrials","market_cap":28.3},{"ticker":"VRTX","company":"Vertex Pharmaceuticals","sector":"Health Care","market_cap":127.5},{"ticker":"WMT","company":"Walmart","sector":"Consumer Discretionary","market_cap":1001.9},{"ticker":"WBD","company":"Warner Bros. Discovery","sector":"Consumer Discretionary","market_cap":69.1},{"ticker":"WDC","company":"Western Digital","sector":"Technology","market_cap":93.5},{"ticker":"WDAY","company":"Workday, Inc.","sector":"Technology","market_cap":36.4},{"ticker":"XEL","company":"Xcel Energy","sector":"Utilities","market_cap":51.3},{"ticker":"ZS","company":"Zscaler","sector":"Technology","market_cap":25.3}];
+window.NDX_UNIVERSE_READY = Promise.resolve(window.NDX_UNIVERSE);</script>
+<script>
+// Mock data generator — realistic NDX 100 alert snapshot for 2026-04-20.
+// Uses a seeded PRNG so everything is deterministic across loads.
+// Produces: alerts[], factor panel, options panel, insider panel,
+// 252-day price series per ticker, Form 4 list per ticker, option chain per ticker.
+
+(function () {
+  function mulberry32(seed) {
+    return function () {
+      let t = (seed += 0x6d2b79f5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashStr(s) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+  function gauss(rng) {
+    const u = Math.max(rng(), 1e-9);
+    const v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  const AS_OF = "2026-04-20";
+  const AVAILABLE_DATES = [
+    "2026-04-20", "2026-04-17", "2026-04-16", "2026-04-15", "2026-04-14",
+    "2026-04-11", "2026-04-10", "2026-04-09", "2026-04-08", "2026-04-07",
+  ];
+
+  // Sector-biased drift keyed to the GICS-lite sectors the repo uses.
+  // Positive => sector-wide bullish lean; Negative => bearish lean.
+  const SECTOR_BIAS = {
+    "Technology": 0.35,
+    "Consumer Discretionary": 0.05,
+    "Consumer Staples": -0.10,
+    "Health Care": -0.22,
+    "Industrials": 0.08,
+    "Telecommunications": -0.05,
+    "Utilities": -0.08,
+    "Energy": 0.18,
+    "Real Estate": -0.12,
+    "Basic Materials": 0.04,
+  };
+
+  // Per-ticker override so the top/bottom of the ledger feels real.
+  const TICKER_OVERRIDE = {
+    NVDA: 0.8, AVGO: 0.55, META: 0.45, MU: 0.5, AMD: 0.4,
+    PLTR: 0.7, CRWD: 0.35, PANW: 0.3, APP: 0.75, SHOP: 0.3,
+    TSLA: -0.55, WBD: -0.8, PYPL: -0.45, INTC: -0.6, WBA: -0.9,
+    KHC: -0.5, LCID: -0.7, DLTR: -0.55, LULU: -0.35, CMCSA: -0.25,
+    MSTR: 0.55, COST: 0.15, NFLX: 0.2, AAPL: -0.1, GOOGL: 0.12,
+    MSFT: 0.18, AMZN: 0.25,
+  };
+
+  function buildPanel(dateStr, universe) {
+    const panel = [];
+    const dateSeed = hashStr(dateStr) & 0xffff;
+    for (const u of universe) {
+      const rng = mulberry32(hashStr(u.ticker) + dateSeed);
+      const sb = (SECTOR_BIAS[u.sector] || 0) + (TICKER_OVERRIDE[u.ticker] || 0);
+
+      const momentum_z = clamp(gauss(rng) * 1.0 + sb * 1.1, -3, 3);
+      const value_z    = clamp(gauss(rng) * 0.95 - sb * 0.3, -3, 3);
+      const quality_z  = clamp(gauss(rng) * 0.85 + sb * 0.4, -3, 3);
+      const lowvol_z   = clamp(gauss(rng) * 0.8 - Math.abs(sb) * 0.25, -3, 3);
+      const factor_z = 0.40 * momentum_z + 0.25 * value_z + 0.20 * quality_z + 0.15 * lowvol_z;
+      const momentum_3m_z = clamp(momentum_z * 0.9 + gauss(rng) * 0.25, -3, 3);
+
+      const options_z = clamp(gauss(rng) * 0.95 + sb * 0.85, -3.2, 3.2);
+      const insider_z = clamp(gauss(rng) * 0.9 + sb * 0.55 - (u.market_cap > 1000 ? 0.1 : 0), -3.2, 3.2);
+
+      const composite = 0.40 * factor_z + 0.30 * options_z + 0.30 * insider_z;
+
+      panel.push({
+        ticker: u.ticker, company: u.company, sector: u.sector,
+        market_cap: u.market_cap,
+        momentum_z, value_z, quality_z, lowvol_z,
+        factor_z, options_z, insider_z, momentum_3m_z,
+        composite,
+      });
+    }
+    return panel;
+  }
+
+  function tierOf(row, momCut) {
+    const {composite: c, factor_z: fz, options_z: oz, insider_z: iz, momentum_3m_z: mz} = row;
+    if (c > 1.5 && fz > 0.3 && oz > 0.3 && iz > 0.3) return "STRONG_BULLISH";
+    if (c < -1.5 && fz < -0.3 && oz < -0.3 && iz < -0.3) return "STRONG_BEARISH";
+    if (mz >= momCut) return "MOMENTUM_LONG";
+    const pos = (fz > 0.15) + (oz > 0.15) + (iz > 0.15);
+    const neg = (fz < -0.15) + (oz < -0.15) + (iz < -0.15);
+    if (c > 1.0 && pos >= 2 && neg === 0) return "CONFLUENCE_BULLISH";
+    if (c < -1.0 && neg >= 2 && pos === 0) return "CONFLUENCE_BEARISH";
+    return "NO_ALERT";
+  }
+  function rationale(row) {
+    const parts = [];
+    if (row.tier === "MOMENTUM_LONG") parts.push(`3m-mom=+${row.momentum_3m_z.toFixed(2)}`);
+    for (const [lbl, z] of [["factor", row.factor_z], ["options", row.options_z], ["insider", row.insider_z]]) {
+      if (Math.abs(z) >= 0.5) parts.push(`${lbl}=${z > 0 ? "+" : "-"}${Math.abs(z).toFixed(2)}`);
+    }
+    return parts.length ? parts.join(", ") : "mixed / weak";
+  }
+  const TIER_ORDER = {
+    STRONG_BULLISH: 0, MOMENTUM_LONG: 1, CONFLUENCE_BULLISH: 2,
+    NO_ALERT: 3, CONFLUENCE_BEARISH: 4, STRONG_BEARISH: 5,
+  };
+
+  function buildAlerts(dateStr, universe) {
+    const panel = buildPanel(dateStr, universe);
+    const sortedMz = panel.map(r => r.momentum_3m_z).sort((a, b) => b - a);
+    const cutIdx = Math.max(0, Math.floor(panel.length * 0.10) - 1);
+    const momCut = sortedMz[cutIdx];
+    for (const r of panel) {
+      r.tier = tierOf(r, momCut);
+      r.rationale = rationale(r);
+    }
+    panel.sort((a, b) => {
+      const oa = TIER_ORDER[a.tier], ob = TIER_ORDER[b.tier];
+      if (oa !== ob) return oa - ob;
+      return b.composite - a.composite;
+    });
+    return panel;
+  }
+
+  function buildPriceSeries(ticker, sector, mcap, asOfISO) {
+    const rng = mulberry32(hashStr(ticker));
+    const sb = SECTOR_BIAS[sector] || 0;
+    const mu = 0.0004 + sb * 0.0006 + (TICKER_OVERRIDE[ticker] || 0) * 0.0006;
+    const sig = 0.018 + (mcap < 80 ? 0.012 : 0) + (sector === "Consumer Discretionary" ? 0.004 : 0);
+    // Seed starting level from ticker so prices feel distinct
+    let p = 25 + (hashStr(ticker) % 500);
+    const endMs = Date.parse(asOfISO);
+    const oneDay = 86400000;
+    const days = 252;
+    let cursor = new Date(endMs);
+    const dates = [];
+    while (dates.length < days) {
+      const d = cursor.getUTCDay();
+      if (d !== 0 && d !== 6) dates.push(new Date(cursor.getTime()));
+      cursor = new Date(cursor.getTime() - oneDay);
+    }
+    dates.reverse();
+    const series = [];
+    for (let i = 0; i < days; i++) {
+      const r = mu + sig * gauss(rng);
+      p *= 1 + r;
+      if (p < 1) p = 1;
+      series.push({date: dates[i].toISOString().slice(0, 10), close: p});
+    }
+    return series;
+  }
+
+  function buildChain(ticker, spot) {
+    const rng = mulberry32(hashStr(ticker) ^ 0xa11ce);
+    const expiries = [];
+    const startMs = Date.parse(AS_OF);
+    for (const dte of [8, 22, 50, 78, 134]) {
+      expiries.push({
+        dte,
+        label: new Date(startMs + dte * 86400000).toISOString().slice(5, 10),
+      });
+    }
+    const strikes = [];
+    for (let i = -4; i <= 4; i++) strikes.push(+(spot * (1 + i * 0.03)).toFixed(0));
+    const cells = [];
+    for (const s of strikes) {
+      const row = [];
+      for (const e of expiries) {
+        const atmDist = Math.abs((s - spot) / spot);
+        const base = Math.exp(-atmDist * 6) * (0.3 + 0.9 * rng());
+        const expirTilt = 1 / (1 + e.dte / 30);
+        row.push(+(base * expirTilt).toFixed(2));
+      }
+      cells.push({strike: s, voi: row});
+    }
+    return {expiries, strikes: cells};
+  }
+
+  const POSITIONS = ["CEO", "CFO", "CTO", "COO", "Director", "EVP", "SVP",
+                     "10% Owner", "Director", "Director", "General Counsel"];
+  const FIRST_NAMES = ["Jane", "Michael", "Robert", "David", "Sarah", "Linda",
+                       "James", "Patricia", "Karen", "Anthony", "Priya", "Samuel",
+                       "Chen", "Lisa", "Mark", "Ana"];
+  const LAST_NAMES = ["Smith", "Chen", "Patel", "Johnson", "Garcia", "Brown",
+                      "Miller", "Davis", "Wilson", "Kim", "Anderson", "Thomas",
+                      "Nguyen", "Reyes", "Taylor"];
+
+  function buildForm4(ticker, insider_z) {
+    const rng = mulberry32(hashStr(ticker) ^ 0xf0f4);
+    const n = 5 + Math.floor(rng() * 14);
+    const rows = [];
+    const endMs = Date.parse(AS_OF);
+    const buyProb = clamp(0.35 + insider_z * 0.14, 0.05, 0.9);
+    for (let i = 0; i < n; i++) {
+      const daysAgo = Math.floor(rng() * 85) + 1;
+      const date = new Date(endMs - daysAgo * 86400000).toISOString().slice(0, 10);
+      const isBuy = rng() < buyProb;
+      const tx_code = isBuy ? "P" : "S";
+      const fn = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)];
+      const ln = LAST_NAMES[Math.floor(rng() * LAST_NAMES.length)];
+      const pos = POSITIONS[Math.floor(rng() * POSITIONS.length)];
+      const shares = Math.round((1000 + rng() * 50000) * (pos === "10% Owner" ? 30 : 1));
+      const price = 20 + rng() * 480;
+      const value = shares * price;
+      let signal_weight = 0, signal_label = "HOLD";
+      if (isBuy) {
+        signal_weight = pos === "CEO" || pos === "CFO" ? 3 : pos === "Director" ? 1 : 2;
+        signal_label = pos === "CEO" || pos === "CFO" ? "CLUSTER BUY" : "OPEN BUY";
+      } else {
+        signal_weight = pos.includes("10%") ? -2 : -1;
+        signal_label = shares > 20000 ? "LARGE SELL" : "ROUTINE SELL";
+      }
+      rows.push({date, insider: `${fn} ${ln}`, position: pos, tx_code,
+                 signal_label, signal_weight, shares, value});
+    }
+    rows.sort((a, b) => b.date.localeCompare(a.date));
+    return rows;
+  }
+
+  window.DATA = {
+    AS_OF,
+    AVAILABLE_DATES,
+    async ready() {
+      await window.NDX_UNIVERSE_READY;
+      return window.NDX_UNIVERSE;
+    },
+    getAlerts(dateStr) {
+      if (!this._cache) this._cache = {};
+      if (!this._cache[dateStr]) this._cache[dateStr] = buildAlerts(dateStr, window.NDX_UNIVERSE);
+      return this._cache[dateStr];
+    },
+    getPrices(ticker, sector, mcap) {
+      if (!this._prices) this._prices = {};
+      if (!this._prices[ticker]) {
+        this._prices[ticker] = buildPriceSeries(ticker, sector, mcap, AS_OF);
+      }
+      return this._prices[ticker];
+    },
+    getChain(ticker, spot) {
+      if (!this._chains) this._chains = {};
+      if (!this._chains[ticker]) this._chains[ticker] = buildChain(ticker, spot);
+      return this._chains[ticker];
+    },
+    getForm4(ticker, insider_z) {
+      if (!this._f4) this._f4 = {};
+      if (!this._f4[ticker]) this._f4[ticker] = buildForm4(ticker, insider_z);
+      return this._f4[ticker];
+    },
+  };
+})();
+
+</script>
+<script>
+// NDX Alert Desk — front-end logic.
+// Responsibilities: filter/sort ledger, render deep-dive, draw constellation,
+// wire interactions (ticker select, filters, search), and Tweaks panel.
+
+const state = {
+  date: null,
+  tier: "all",
+  topN: 25,
+  search: "",
+  sortKey: "composite",
+  sortDir: -1,
+  selectedTicker: null,
+  alerts: [],
+  compMin: -3, compMax: 3,
+};
+
+const COLORS = {
+  pos: "#5FB98A", neg: "#E06868", muted: "#6B7182",
+  accent: "#E8B84E", border: "#1E2230", bgS2: "#1A1E27",
+  darkRed: "#8E2626", deepGreen: "#2F6B4C",
+};
+
+const fmtZ = v => (v == null || isNaN(v)) ? "—" : (v >= 0 ? "+" : "") + v.toFixed(2);
+const fmtDollar = v => {
+  if (v == null || isNaN(v)) return "—";
+  const a = Math.abs(v), sign = v < 0 ? "-" : "";
+  if (a >= 1e12) return `${sign}${(a/1e12).toFixed(1)}T`;
+  if (a >= 1e9)  return `${sign}${(a/1e9).toFixed(1)}B`;
+  if (a >= 1e6)  return `${sign}${(a/1e6).toFixed(1)}M`;
+  if (a >= 1e3)  return `${sign}${(a/1e3).toFixed(0)}K`;
+  return `${sign}${a.toFixed(0)}`;
+};
+
+function tierChip(tier) {
+  if (tier.includes("BULL") || tier === "MOMENTUM_LONG")
+    return `<span class="tier-chip tier-chip--bull">${tier === "MOMENTUM_LONG" ? "MOM LONG" : tier.includes("STRONG") ? "LONG" : "CONFLUENCE"}</span>`;
+  if (tier.includes("BEAR"))
+    return `<span class="tier-chip tier-chip--bear">${tier.includes("STRONG") ? "SHORT" : "CONFLUENCE"}</span>`;
+  return `<span class="tier-chip tier-chip--none">WATCH</span>`;
+}
+
+// Inline SVG micro-bar with tick at zero
+function microBar(v, span = 2.5) {
+  if (v == null || isNaN(v)) return `<span style="color:${COLORS.muted}">—</span>`;
+  const W = 72, H = 10, mid = W / 2;
+  const c = Math.max(-span, Math.min(span, v));
+  const barW = Math.abs(c) / span * (W / 2);
+  const x0 = c < 0 ? mid - barW : mid;
+  const col = v >= 0 ? COLORS.pos : COLORS.neg;
+  return `<span class="bar-wrap"><svg width="${W}" height="${H}" style="vertical-align:middle">
+    <rect x="0" y="4" width="${W}" height="2" fill="${COLORS.border}"/>
+    <rect x="${x0}" y="2" width="${barW}" height="6" fill="${col}"/>
+    <rect x="${mid-0.5}" y="0" width="1" height="${H}" fill="${COLORS.muted}" opacity="0.4"/>
+  </svg><span class="bar-val" style="color:${col}">${fmtZ(v)}</span></span>`;
+}
+
+// ── KPI strip ─────────────────────────────────────────────────
+function renderKPIs() {
+  const a = state.alerts;
+  const nBull = a.filter(r => r.tier === "STRONG_BULLISH").length;
+  const nBear = a.filter(r => r.tier === "STRONG_BEARISH").length;
+  const nMom  = a.filter(r => r.tier === "MOMENTUM_LONG").length;
+  const nConfBull = a.filter(r => r.tier === "CONFLUENCE_BULLISH").length;
+  const nConfBear = a.filter(r => r.tier === "CONFLUENCE_BEARISH").length;
+  const nWatch = a.length - nBull - nBear - nMom - nConfBull - nConfBear;
+  const compMin = Math.min(...a.map(r => r.composite));
+  const compMax = Math.max(...a.map(r => r.composite));
+
+  const kpis = [
+    {label: "Long alerts", value: nBull + nConfBull, delta: `${nBull} strong · ${nConfBull} confluence`, deltaCls: "pos"},
+    {label: "Short alerts", value: nBear + nConfBear, delta: `${nBear} strong · ${nConfBear} confluence`, deltaCls: "neg"},
+    {label: "Momentum long", value: nMom, delta: "top-decile 3M z", deltaCls: ""},
+    {label: "Composite range", value: `${compMin.toFixed(2)} … ${compMax.toFixed(2)}`,
+     delta: `${nWatch} tickers on watch`, deltaCls: ""},
+  ];
+  document.getElementById("kpiGrid").innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="kpi__label">${k.label}</div>
+      <div class="kpi__value">${k.value}</div>
+      <div class="kpi__delta ${k.deltaCls}">${k.delta}</div>
+    </div>`).join("");
+}
+
+// ── Ledger ────────────────────────────────────────────────────
+function filteredSorted() {
+  let rows = state.alerts.slice();
+  if (state.tier === "long") rows = rows.filter(r => r.tier === "STRONG_BULLISH");
+  else if (state.tier === "short") rows = rows.filter(r => r.tier === "STRONG_BEARISH");
+  else if (state.tier === "alerts") rows = rows.filter(r => r.tier !== "NO_ALERT");
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    rows = rows.filter(r => r.ticker.toLowerCase().includes(q) || r.company.toLowerCase().includes(q));
+  }
+  rows = rows.filter(r => r.composite >= state.compMin && r.composite <= state.compMax);
+  rows.sort((a, b) => (a[state.sortKey] - b[state.sortKey]) * state.sortDir);
+  return rows.slice(0, state.topN);
+}
+function renderLedger() {
+  const rows = filteredSorted();
+  const tbody = document.querySelector("#ledger tbody");
+  tbody.innerHTML = rows.map(r => `
+    <tr data-ticker="${r.ticker}" class="${r.ticker === state.selectedTicker ? 'selected' : ''}">
+      <td>${tierChip(r.tier)}</td>
+      <td class="ticker-cell">${r.ticker}<div class="sector">${r.sector}</div></td>
+      <td class="company">${r.company}</td>
+      <td class="composite ${r.composite >= 0 ? 'pos' : 'neg'}">${fmtZ(r.composite)}</td>
+      <td>${microBar(r.factor_z)}</td>
+      <td>${microBar(r.options_z)}</td>
+      <td>${microBar(r.insider_z)}</td>
+      <td class="rationale">${r.rationale}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#ledger thead th.sortable").forEach(th => {
+    const k = th.dataset.sort;
+    const ind = th.querySelector(".sort-ind");
+    if (ind) ind.textContent = state.sortKey === k ? (state.sortDir < 0 ? "↓" : "↑") : "";
+  });
+  document.getElementById("ledgerFooter").textContent =
+    `Showing ${rows.length} of ${state.alerts.length} · sorted by ${state.sortKey} ${state.sortDir < 0 ? 'desc' : 'asc'}`;
+  tbody.querySelectorAll("tr").forEach(tr => tr.addEventListener("click", () => {
+    state.selectedTicker = tr.dataset.ticker;
+    const hint = document.getElementById("navTickerHint");
+    if (hint) hint.textContent = "· " + state.selectedTicker;
+    renderLedger(); renderDeepDive();
+    switchView("deepdive");
+  }));
+}
+
+// ── Ticker deep dive ──────────────────────────────────────────
+function renderDeepDive() {
+  const t = state.selectedTicker;
+  const row = state.alerts.find(r => r.ticker === t);
+  if (!row) return;
+
+  // Header strip
+  document.getElementById("tickerStrip").innerHTML = `
+    <div class="ticker-strip__left">
+      <div class="sym">${row.ticker}</div>
+      <div class="co">${row.company}<span class="dot">·</span>${row.sector}<span class="dot">·</span>mkt cap ${fmtDollar(row.market_cap * 1e9)}</div>
+    </div>
+    <div class="ticker-strip__right">
+      <div><span class="label">Tier</span>${tierChip(row.tier)}</div>
+      <div style="margin-top:0.3rem;">
+        <span class="label">Composite</span>
+        <span style="color:${row.composite >= 0 ? COLORS.pos : COLORS.neg};">${fmtZ(row.composite)}</span>
+      </div>
+    </div>`;
+
+  // Price chart
+  const series = window.DATA.getPrices(row.ticker, row.sector, row.market_cap);
+  renderPriceChart(series);
+
+  // Factor bars
+  renderFactorBars(row);
+
+  // Options surface
+  const spot = series[series.length - 1].close;
+  renderOptions(window.DATA.getChain(row.ticker, spot), spot);
+
+  // Form 4 table
+  renderInsiders(window.DATA.getForm4(row.ticker, row.insider_z));
+}
+
+function renderPriceChart(series) {
+  const W = 620, H = 250, P = { t: 10, r: 12, b: 26, l: 46 };
+  const closes = series.map(d => d.close);
+  const sma50 = closes.map((_, i) => {
+    if (i < 49) return null;
+    let s = 0; for (let k = i - 49; k <= i; k++) s += closes[k];
+    return s / 50;
+  });
+  const min = Math.min(...closes), max = Math.max(...closes);
+  const xOf = i => P.l + (W - P.l - P.r) * (i / (series.length - 1));
+  const yOf = v => P.t + (H - P.t - P.b) * (1 - (v - min) / (max - min || 1));
+
+  let path = "";
+  series.forEach((d, i) => { path += (i ? "L" : "M") + xOf(i) + " " + yOf(d.close) + " "; });
+  let sma = "";
+  sma50.forEach((v, i) => { if (v != null) sma += (sma ? "L" : "M") + xOf(i) + " " + yOf(v) + " "; });
+
+  // y ticks: 4
+  const ticksY = [0, 0.33, 0.66, 1].map(t => min + t * (max - min));
+  const ticksX = [0, 0.25, 0.5, 0.75, 1].map(t => Math.floor(t * (series.length - 1)));
+
+  const last = closes[closes.length - 1];
+  const ret1m = series.length >= 21 ? (last / closes[closes.length - 21] - 1) * 100 : null;
+  const ret3m = series.length >= 63 ? (last / closes[closes.length - 63] - 1) * 100 : null;
+  const ret1y = series.length >= 252 ? (last / closes[0] - 1) * 100 : null;
+
+  document.getElementById("priceChart").innerHTML = `
+    <svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block">
+      ${ticksY.map(v => `<line x1="${P.l}" y1="${yOf(v)}" x2="${W-P.r}" y2="${yOf(v)}"
+        stroke="${COLORS.border}" stroke-width="1"/>`).join("")}
+      ${ticksY.map(v => `<text x="${P.l-6}" y="${yOf(v)+3}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.muted}" text-anchor="end">${v.toFixed(0)}</text>`).join("")}
+      ${ticksX.map(i => `<text x="${xOf(i)}" y="${H-8}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.muted}" text-anchor="middle">${series[i].date.slice(2,7)}</text>`).join("")}
+      <path d="${sma}" fill="none" stroke="${COLORS.muted}" stroke-width="1" stroke-dasharray="2,3" opacity="0.8"/>
+      <path d="${path}" fill="none" stroke="${COLORS.accent}" stroke-width="1.5"/>
+      <circle cx="${xOf(series.length-1)}" cy="${yOf(last)}" r="3" fill="${COLORS.accent}"/>
+    </svg>`;
+
+  const rc = v => v == null ? "" : `<span style="color:${v >= 0 ? COLORS.pos : COLORS.neg}">${v >= 0 ? "+" : ""}${v.toFixed(2)}%</span>`;
+  document.getElementById("priceMeta").innerHTML = `
+    Last <span class="hi">${last.toFixed(2)}</span>
+    · 1M ${rc(ret1m)}
+    · 3M ${rc(ret3m)}
+    · 1Y ${rc(ret1y)}`;
+}
+
+function renderFactorBars(row) {
+  const items = [
+    ["Momentum", row.momentum_z],
+    ["Value",    row.value_z],
+    ["Quality",  row.quality_z],
+    ["Low-vol",  row.lowvol_z],
+  ];
+  const span = 2.5;
+  document.getElementById("factorBars").innerHTML = items.map(([lbl, v]) => {
+    const pct = Math.min(Math.abs(v) / span, 1) * 50;
+    const style = v >= 0
+      ? `left:50%;width:${pct}%;`
+      : `left:${50 - pct}%;width:${pct}%;`;
+    return `<div class="factor-row">
+      <div class="lbl">${lbl}</div>
+      <div class="factor-bar"><span class="${v < 0 ? 'neg' : ''}" style="${style}"></span></div>
+      <div class="val ${v >= 0 ? 'pos' : 'neg'}">${fmtZ(v)}</div>
+    </div>`;
+  }).join("");
+}
+
+function voiColor(v, max) {
+  // Ramp: dark neutral → accent-soft → accent
+  const t = Math.min(v / max, 1);
+  // Interpolate between #1A1E27 (0) → #8A6B1F (0.5) → #E8B84E (1)
+  const mix = (a, b, f) => Math.round(a + (b - a) * f);
+  let r, g, b;
+  if (t < 0.5) {
+    const f = t / 0.5;
+    r = mix(0x1A, 0x8A, f); g = mix(0x1E, 0x6B, f); b = mix(0x27, 0x1F, f);
+  } else {
+    const f = (t - 0.5) / 0.5;
+    r = mix(0x8A, 0xE8, f); g = mix(0x6B, 0xB8, f); b = mix(0x1F, 0x4E, f);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderOptions(chain, spot) {
+  const max = Math.max(...chain.strikes.flatMap(s => s.voi));
+  const atmStrike = chain.strikes.reduce((a, b) => Math.abs(b.strike - spot) < Math.abs(a.strike - spot) ? b : a).strike;
+
+  const head = `<tr><th>Strike</th>${chain.expiries.map(e =>
+    `<th>${e.label}<br><span style="opacity:0.5;font-weight:400;">${e.dte}d</span></th>`).join("")}</tr>`;
+  const body = chain.strikes.map(row => {
+    return `<tr>
+      <td class="strike">${row.strike}</td>
+      ${row.voi.map(v => `<td class="cell ${row.strike === atmStrike ? 'atm' : ''}"
+        style="background:${voiColor(v, max)};"
+        title="V/OI ${v.toFixed(2)}">${v.toFixed(2)}</td>`).join("")}
+    </tr>`;
+  }).join("");
+  document.getElementById("optionsSurface").innerHTML = `
+    <table class="heatmap">
+      <thead>${head}</thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+function renderInsiders(rows) {
+  const head = `<tr>
+    <th>Date</th><th>Insider</th><th>Role</th><th>Signal</th><th style="text-align:right">Value</th>
+  </tr>`;
+  const body = rows.map(r => {
+    const sig = r.signal_weight > 0 ? "pos" : r.signal_weight < 0 ? "neg" : "";
+    return `<tr>
+      <td class="mono">${r.date}</td>
+      <td class="name">${r.insider}</td>
+      <td class="mono">${r.position}</td>
+      <td class="sig-code ${sig}">${r.signal_label}</td>
+      <td class="mono" style="text-align:right;color:var(--text-primary)">${fmtDollar(r.value)}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("insiderTable").innerHTML = `
+    <div class="f4-scroll panel" style="border:1px solid var(--border-subtle);background:var(--bg-surface-1)">
+      <table class="f4"><thead>${head}</thead><tbody>${body}</tbody></table>
+    </div>`;
+}
+
+// ── Constellation scatter ────────────────────────────────────
+function divergeColor(v, span = 2) {
+  // -span → deep red, 0 → dark, +span → deep green
+  const t = Math.max(-1, Math.min(1, v / span));
+  const mix = (a, b, f) => Math.round(a + (b - a) * f);
+  if (t >= 0) {
+    const f = t;
+    const r = mix(0x12, 0x2F, f), g = mix(0x15, 0x6B, f), b = mix(0x1C, 0x4C, f);
+    // fade toward lighter green tail
+    const r2 = mix(r, 0x7F, Math.max(0, f - 0.6) * 2.5);
+    const g2 = mix(g, 0xCB, Math.max(0, f - 0.6) * 2.5);
+    const b2 = mix(b, 0xA0, Math.max(0, f - 0.6) * 2.5);
+    return `rgb(${r2},${g2},${b2})`;
+  } else {
+    const f = -t;
+    const r = mix(0x12, 0x8E, f), g = mix(0x15, 0x26, f), b = mix(0x1C, 0x26, f);
+    const r2 = mix(r, 0xE0, Math.max(0, f - 0.6) * 2.5);
+    const g2 = mix(g, 0x68, Math.max(0, f - 0.6) * 2.5);
+    const b2 = mix(b, 0x68, Math.max(0, f - 0.6) * 2.5);
+    return `rgb(${r2},${g2},${b2})`;
+  }
+}
+
+function renderConstellation() {
+  const W = 1400, H = 520, P = { t: 24, r: 60, b: 48, l: 60 };
+  const pts = state.alerts;
+  const span = 3.2;
+  const xOf = v => P.l + (W - P.l - P.r) * ((v + span) / (2 * span));
+  const yOf = v => P.t + (H - P.t - P.b) * (1 - (v + span) / (2 * span));
+  const x0 = xOf(0), y0 = yOf(0);
+
+  const gridLines = [-3,-2,-1,0,1,2,3].map(v => `
+    <line x1="${xOf(v)}" y1="${P.t}" x2="${xOf(v)}" y2="${H - P.b}"
+      stroke="${v === 0 ? COLORS.muted : COLORS.border}" stroke-width="${v === 0 ? 1 : 0.5}" opacity="${v === 0 ? 0.7 : 1}"/>
+    <line x1="${P.l}" y1="${yOf(v)}" x2="${W - P.r}" y2="${yOf(v)}"
+      stroke="${v === 0 ? COLORS.muted : COLORS.border}" stroke-width="${v === 0 ? 1 : 0.5}" opacity="${v === 0 ? 0.7 : 1}"/>
+    <text x="${xOf(v)}" y="${H - P.b + 14}" font-family="JetBrains Mono" font-size="9"
+      fill="${COLORS.muted}" text-anchor="middle">${v}</text>
+    <text x="${P.l - 8}" y="${yOf(v) + 3}" font-family="JetBrains Mono" font-size="9"
+      fill="${COLORS.muted}" text-anchor="end">${v}</text>`).join("");
+
+  const quadBg = `
+    <rect x="${x0}" y="${P.t}" width="${W - P.r - x0}" height="${y0 - P.t}" fill="${COLORS.pos}" opacity="0.025"/>
+    <rect x="${P.l}" y="${y0}" width="${x0 - P.l}" height="${H - P.b - y0}" fill="${COLORS.neg}" opacity="0.025"/>`;
+
+  // Untiered first (small circles)
+  const untiered = pts.filter(p => p.tier === "NO_ALERT");
+  const tiered = pts.filter(p => p.tier !== "NO_ALERT");
+
+  const dotsU = untiered.map(p => `
+    <circle cx="${xOf(p.factor_z)}" cy="${yOf(p.options_z)}" r="4.5"
+      fill="${divergeColor(p.insider_z)}" stroke="${COLORS.border}" stroke-width="0.5" opacity="0.85">
+      <title>${p.ticker} · ${p.company} · ${p.sector}
+f_z ${fmtZ(p.factor_z)} · o_z ${fmtZ(p.options_z)} · i_z ${fmtZ(p.insider_z)}</title>
+    </circle>`).join("");
+
+  const dotsT = tiered.map(p => {
+    const selected = p.ticker === state.selectedTicker;
+    const r = 6 + Math.min(Math.abs(p.composite), 3) * 1.3;
+    return `
+      <circle data-ticker="${p.ticker}" cx="${xOf(p.factor_z)}" cy="${yOf(p.options_z)}" r="${r}"
+        fill="${divergeColor(p.insider_z)}" stroke="${selected ? '#fff' : COLORS.accent}"
+        stroke-width="${selected ? 2 : 1.1}" style="cursor:pointer">
+        <title>${p.ticker} · ${p.tier} · ${p.company}
+f_z ${fmtZ(p.factor_z)} · o_z ${fmtZ(p.options_z)} · i_z ${fmtZ(p.insider_z)}
+composite ${fmtZ(p.composite)}</title>
+      </circle>
+      <text x="${xOf(p.factor_z)}" y="${yOf(p.options_z) - r - 4}" font-family="JetBrains Mono"
+        font-size="10" fill="${COLORS.accent}" text-anchor="middle" pointer-events="none">${p.ticker}</text>`;
+  }).join("");
+
+  document.getElementById("constellation").innerHTML = `
+    <svg id="constSvg" width="100%" viewBox="0 0 ${W} ${H}" style="display:block;">
+      ${quadBg}
+      ${gridLines}
+      <text x="${W/2}" y="${H - 10}" font-family="IBM Plex Sans" font-size="10"
+        fill="${COLORS.muted}" text-anchor="middle" letter-spacing="2">FACTOR COMPOSITE Z →</text>
+      <text transform="translate(16, ${H/2}) rotate(-90)" font-family="IBM Plex Sans" font-size="10"
+        fill="${COLORS.muted}" text-anchor="middle" letter-spacing="2">OPTIONS FLOW Z →</text>
+      <text x="${W - P.r - 6}" y="${P.t + 14}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.pos}" text-anchor="end">Q1 tailwind</text>
+      <text x="${P.l + 6}" y="${P.t + 14}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.accent}" text-anchor="start">Q2 contrarian</text>
+      <text x="${P.l + 6}" y="${H - P.b - 6}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.neg}" text-anchor="start">Q3 short lean</text>
+      <text x="${W - P.r - 6}" y="${H - P.b - 6}" font-family="JetBrains Mono" font-size="9"
+        fill="${COLORS.muted}" text-anchor="end">Q4 divergence</text>
+      ${dotsU}
+      ${dotsT}
+    </svg>`;
+  document.querySelectorAll("#constSvg circle[data-ticker]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.selectedTicker = el.dataset.ticker;
+      renderLedger(); renderDeepDive(); renderConstellation();
+      document.getElementById("tickerStrip").scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  });
+}
+
+// ── Controls wiring ──────────────────────────────────────────
+function wireControls() {
+  // Date select
+  const dsel = document.getElementById("dateSelect");
+  dsel.innerHTML = window.DATA.AVAILABLE_DATES.map(d =>
+    `<option value="${d}">${d}</option>`).join("");
+  dsel.value = state.date;
+  dsel.addEventListener("change", () => {
+    state.date = dsel.value;
+    state.alerts = window.DATA.getAlerts(state.date);
+    state.selectedTicker = state.alerts[0].ticker;
+    renderAll();
+    switchView("ledger");
+  });
+
+  // Tier filter
+  document.querySelectorAll("#tierFilter button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#tierFilter button").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      state.tier = b.dataset.tier;
+      renderLedger();
+    });
+  });
+
+  // Top N
+  document.getElementById("topN").addEventListener("input", e => {
+    state.topN = Math.max(5, Math.min(100, +e.target.value || 5));
+    renderLedger();
+  });
+
+  // Search
+  document.getElementById("search").addEventListener("input", e => {
+    state.search = e.target.value;
+    renderLedger();
+  });
+
+  // Sortable headers
+  document.querySelectorAll("#ledger thead th.sortable").forEach(th => {
+    th.addEventListener("click", () => {
+      const k = th.dataset.sort;
+      if (state.sortKey === k) state.sortDir *= -1;
+      else { state.sortKey = k; state.sortDir = -1; }
+      document.querySelectorAll("#ledger thead th.sortable .sort-ind").forEach(i => i.textContent = "");
+      renderLedger();
+    });
+  });
+}
+
+// ── Tweaks (Make tweakable protocol) ─────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "#7FA7D4",
+  "density": "comfortable",
+  "compMin": -3,
+  "compMax": 3
+}/*EDITMODE-END*/;
+
+function applyTheme() {
+  const accent = TWEAK_DEFAULTS.accent;
+  document.documentElement.style.setProperty("--accent", accent);
+  document.documentElement.style.setProperty("--accent-hover", accent);
+  COLORS.accent = accent;
+  state.compMin = +TWEAK_DEFAULTS.compMin;
+  state.compMax = +TWEAK_DEFAULTS.compMax;
+  document.documentElement.style.setProperty("--ledger-pad", "0.55rem");
+}
+
+function switchView(name) {
+  document.querySelectorAll(".view").forEach(v => {
+    v.hidden = v.dataset.view !== name;
+  });
+  document.querySelectorAll(".viewnav__tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.view === name);
+  });
+  state.view = name;
+  window.scrollTo({top: 0, behavior: "instant" in window ? "instant" : "auto"});
+}
+
+function wireNav() {
+  document.querySelectorAll(".viewnav__tab").forEach(b => {
+    b.addEventListener("click", () => switchView(b.dataset.view));
+  });
+}
+
+// ── Main render ──────────────────────────────────────────────
+function renderAll() {
+  document.getElementById("universeCount").textContent = `${state.alerts.length} tickers`;
+  renderKPIs();
+  renderLedger();
+  renderDeepDive();
+  renderConstellation();
+}
+
+(async function main() {
+  await window.DATA.ready();
+  state.date = window.DATA.AS_OF;
+  state.alerts = window.DATA.getAlerts(state.date);
+
+  // Pick a ticker to start — first strong bull if present, else first row
+  const seed = state.alerts.find(r => r.tier === "STRONG_BULLISH")
+            || state.alerts.find(r => r.tier === "MOMENTUM_LONG")
+            || state.alerts[0];
+  state.selectedTicker = seed.ticker;
+  const hint0 = document.getElementById("navTickerHint");
+  if (hint0) hint0.textContent = "· " + state.selectedTicker;
+
+  const ny = new Date().toLocaleString("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  document.getElementById("genTime").textContent = ny + " ET";
+
+  applyTheme();
+  wireControls();
+  wireNav();
+  renderAll();
+  switchView("ledger");
+})();
+
+</script>
+</body>
+</html>
