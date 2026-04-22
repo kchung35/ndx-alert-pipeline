@@ -54,7 +54,11 @@ See [workflow-1.png](workflow-1.png) for the original design diagram.
 (The "OI vs 20d avg" node shown there is replaced by six live single-snapshot
 metrics — see [src/options_signals.py](src/options_signals.py).)
 
-## Quickstart
+## Quickstart (turnkey — no data fetch required)
+
+The repo ships with a full data snapshot for **2026-04-21** baked in (Form 4
+filings, option chains, prices, factor / options / insider panels, alerts).
+You can open the dashboard without running anything else.
 
 ```bash
 # 1. Clone the repo
@@ -69,18 +73,30 @@ python3 -m venv .venv && source .venv/bin/activate    # macOS / Linux
 # 3. Install dependencies (Python 3.11 / 3.12 / 3.13)
 pip install -r requirements.txt
 
-# 4. SEC requires a User-Agent with contact info for the EDGAR REST API
+# 4. Open the institutional dashboard — uses the baked-in 2026-04-21 data
+streamlit run src/dashboard.py
+# -> http://localhost:8501
+```
+
+### Optional — refresh for a newer date
+
+To pull fresh data for today (adds ~60 min for the EDGAR step, overwrites
+the committed parquets in place):
+
+```bash
+# SEC requires a User-Agent with contact info for the EDGAR REST API
 export SEC_USER_AGENT="Your Name your@email.com"       # macOS / Linux
 #   OR on Windows PowerShell:
 #   $env:SEC_USER_AGENT = "Your Name your@email.com"
 
-# 5. Run the full daily pipeline (takes ~1 hour on first run because
-#    EDGAR's rate limit is 10 req/s and we pull all Form 4 filings).
 python3 run_daily.py
+```
 
-# 6. Open the institutional dashboard
-streamlit run src/dashboard.py
-# -> http://localhost:8501
+You can also skip the slow steps once the repo's baseline is present:
+
+```bash
+# Same alerts but recomputed (seconds, no network)
+python3 -m src.alert_engine --date 2026-04-21
 ```
 
 Subsequent runs for the same date re-read cached chains / Form 4s and

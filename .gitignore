@@ -1,16 +1,8 @@
-# Generated data outputs (regenerable via `python3 run_daily.py`)
-data/*.parquet
-data/chains/
-data/form4/
-data/alerts/
-data/factors/
-data/options_signals/
-data/insider_signals/
-
-# Keep the seed JSONs committed so first-run works offline:
-# data/constituents_ndx100.json
-# data/market_caps_ndx100.json
-# data/sec_company_tickers_cache.json
+# Data outputs ship with the repo so teammates/grader can run
+# `streamlit run src/dashboard.py` immediately without a 60-minute EDGAR pull.
+# `python3 run_daily.py` will still overwrite these in place with fresh data.
+#
+# Anything you want to exclude goes below.
 
 # Python
 __pycache__/
