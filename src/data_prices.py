@@ -15,6 +15,7 @@ import argparse
 import logging
 import threading
 import time
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -96,6 +97,29 @@ def save_prices(df: pd.DataFrame) -> Path:
 
 def load_prices() -> pd.DataFrame:
     return pd.read_parquet(PRICES_PARQUET)
+
+
+def latest_adj_close_on_or_before(
+    prices: pd.DataFrame,
+    ticker: str,
+    as_of: date | pd.Timestamp | str,
+) -> float | None:
+    """Return ticker's latest adjusted close available on or before as_of."""
+    required = {"date", "ticker", "adj_close"}
+    if prices.empty or not required.issubset(prices.columns):
+        return None
+
+    as_of_ts = pd.Timestamp(as_of)
+    sub = prices.copy()
+    sub["date"] = pd.to_datetime(sub["date"])
+    sub = sub[(sub["ticker"] == ticker) & (sub["date"] <= as_of_ts)]
+    if sub.empty:
+        return None
+
+    value = sub.sort_values("date").iloc[-1]["adj_close"]
+    if pd.isna(value):
+        return None
+    return float(value)
 
 
 # ── fundamentals via .info ──────────────────────────────────────────────

@@ -22,3 +22,6 @@ __pycache__/
 
 # Runtime logs
 logs/*.log
+
+# Local newsletter/export artifacts
+exports/

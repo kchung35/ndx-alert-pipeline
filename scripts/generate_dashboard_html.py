@@ -7,7 +7,8 @@ records sourced from the daily pipeline's parquet outputs:
     alerts/{date}.parquet         -> alert rows (tier, composite, z-scores)
     factors/{date}.parquet        -> per-factor z-score breakdown
     prices.parquet                -> 1y adj_close per ticker
-    chains/{date}/{ticker}.parquet -> option V/OI surface per ticker
+    options_signals/{date}.parquet -> options score, sub-scores, quality
+    chains/{date}/{ticker}.parquet -> option snapshot surface per ticker
     form4/{ticker}.parquet        -> last 20 Form 4 transactions per ticker
     universe.parquet              -> ticker + company + sector + market cap
 
@@ -34,9 +35,12 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.data_prices import latest_adj_close_on_or_before  # noqa: E402
+
 DATA_DIR = PROJECT_ROOT / "data"
 ALERTS_DIR = DATA_DIR / "alerts"
 FACTORS_DIR = DATA_DIR / "factors"
+OPT_SIG_DIR = DATA_DIR / "options_signals"
 CHAINS_DIR = DATA_DIR / "chains"
 FORM4_DIR = DATA_DIR / "form4"
 UNIVERSE_PARQUET = DATA_DIR / "universe.parquet"
@@ -91,12 +95,15 @@ def build_alerts_records(as_of: date) -> list[dict]:
     """Alerts + per-factor z-scores merged into a single row per ticker."""
     alerts = pd.read_parquet(ALERTS_DIR / f"{as_of.isoformat()}.parquet")
     factors = pd.read_parquet(FACTORS_DIR / f"{as_of.isoformat()}.parquet").set_index("ticker")
+    opt_path = OPT_SIG_DIR / f"{as_of.isoformat()}.parquet"
+    options = pd.read_parquet(opt_path).set_index("ticker") if opt_path.exists() else pd.DataFrame()
     uni = pd.read_parquet(UNIVERSE_PARQUET).set_index("ticker")
 
     rows = []
     for _, a in alerts.iterrows():
         t = str(a["ticker"])
         f = factors.loc[t] if t in factors.index else None
+        o = options.loc[t] if not options.empty and t in options.index else None
         u = uni.loc[t] if t in uni.index else None
         rows.append({
             "ticker": t,
@@ -109,6 +116,12 @@ def build_alerts_records(as_of: date) -> list[dict]:
             "lowvol_z": _round(f["lowvol_z"]) if f is not None else 0.0,
             "factor_z": _round(a["factor_z"]),
             "options_z": _round(a["options_z"]),
+            "options_z_raw": _round(o["options_z_raw"]) if o is not None and "options_z_raw" in o else None,
+            "options_quality": str(o["options_quality"]) if o is not None and "options_quality" in o else "UNKNOWN",
+            "options_coverage": _round(o["options_coverage"]) if o is not None and "options_coverage" in o else None,
+            "flow_score": _round(o["flow_score"]) if o is not None and "flow_score" in o else None,
+            "skew_score": _round(o["skew_score"]) if o is not None and "skew_score" in o else None,
+            "vol_stress_score": _round(o["vol_stress_score"]) if o is not None and "vol_stress_score" in o else None,
             "insider_z": _round(a["insider_z"]),
             "momentum_3m_z": _round(a["momentum_3m_z"]),
             "composite": _round(a["composite"]),
@@ -118,13 +131,13 @@ def build_alerts_records(as_of: date) -> list[dict]:
     return rows
 
 
-def build_prices_map() -> dict[str, list[dict]]:
+def build_prices_map(as_of: date) -> dict[str, list[dict]]:
     """Per-ticker last-252-day adj_close series."""
     p = pd.read_parquet(PRICES_PARQUET)
     p["date"] = pd.to_datetime(p["date"])
     out: dict[str, list[dict]] = {}
     for t, grp in p.groupby("ticker"):
-        sub = grp.sort_values("date").tail(PRICE_DAYS)
+        sub = grp[grp["date"] <= pd.Timestamp(as_of)].sort_values("date").tail(PRICE_DAYS)
         out[str(t)] = [
             {"date": d.strftime("%Y-%m-%d"), "close": _round(c, 2)}
             for d, c in zip(sub["date"], sub["adj_close"])
@@ -138,13 +151,15 @@ def build_chain_map(as_of: date) -> dict[str, dict]:
 
     The HTML renderer expects:
         expiries: [{dte, label}]
-        strikes:  [{strike, voi: [v1, v2, ...]}]   # one voi per expiry
+        metric:   "V/OI" or "Volume"
+        strikes:  [{strike, voi: [v1, v2, ...]}]   # one metric value per expiry
 
     Aggregates call+put volume and OI per strike+expiry, then computes
-    V/OI for the ATM +/- 12% band across the next 5 expiries.
+    V/OI for the ATM +/- 12% band across the next 5 expiries. If Yahoo has
+    too little usable open interest, falls back to volume for display.
     """
     day_dir = CHAINS_DIR / as_of.isoformat()
-    spots = _latest_spot_map()
+    spots = _latest_spot_map(as_of)
     out: dict[str, dict] = {}
     for parq in sorted(day_dir.glob("*.parquet")):
         ticker = parq.stem
@@ -160,6 +175,9 @@ def build_chain_map(as_of: date) -> dict[str, dict]:
         df["expiry"] = pd.to_datetime(df["expiry"])
         df["as_of"] = pd.to_datetime(df["as_of_date"])
         df["dte"] = (df["expiry"] - df["as_of"]).dt.days.clip(lower=0)
+        df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0.0)
+        df["open_interest"] = pd.to_numeric(df["open_interest"], errors="coerce").fillna(0.0)
 
         band = df[
             (df["strike"] >= spot * (1 - ATM_BAND))
@@ -168,8 +186,29 @@ def build_chain_map(as_of: date) -> dict[str, dict]:
         if band.empty:
             continue
 
+        # Aggregate call+put volume and OI per strike x expiry
+        agg = (
+            band.groupby(["strike", "expiry"], as_index=False)
+            .agg(dte=("dte", "first"),
+                 volume=("volume", lambda s: s.fillna(0).sum()),
+                 open_interest=("open_interest", lambda s: s.fillna(0).sum()))
+        )
+        agg["voi"] = np.where(agg["open_interest"] > 0, agg["volume"] / agg["open_interest"], np.nan)
+
+        metric_col = "voi"
+        metric_label = "V/OI"
+        decimals = 2
+        metric_rows = agg[agg["voi"].notna() & (agg["voi"] > 0)].copy()
+        if len(metric_rows) < 10 or metric_rows["expiry"].nunique() < 2:
+            metric_col = "volume"
+            metric_label = "Volume"
+            decimals = 0
+            metric_rows = agg[agg["volume"] > 0].copy()
+        if metric_rows.empty:
+            continue
+
         exp_keep = (
-            band[["expiry", "dte"]].drop_duplicates()
+            metric_rows[["expiry", "dte"]].drop_duplicates()
             .sort_values("dte")
             .head(MAX_EXPIRIES)
         )
@@ -181,38 +220,50 @@ def build_chain_map(as_of: date) -> dict[str, dict]:
             for r in exp_keep.itertuples()
         ]
         exp_list = exp_keep["expiry"].tolist()
+        metric_rows = metric_rows[metric_rows["expiry"].isin(exp_list)]
 
-        band = band[band["expiry"].isin(exp_list)]
-        # Aggregate call+put volume and OI per strike x expiry
         agg = (
-            band.groupby(["strike", "expiry"], as_index=False)
+            metric_rows.groupby(["strike", "expiry"], as_index=False)
             .agg(volume=("volume", lambda s: s.fillna(0).sum()),
-                 open_interest=("open_interest", lambda s: s.fillna(0).sum()))
-        )
-        agg["voi"] = np.where(
-            agg["open_interest"] > 0,
-            agg["volume"] / agg["open_interest"],
-            0.0,
+                 open_interest=("open_interest", lambda s: s.fillna(0).sum()),
+                 voi=("voi", "mean"))
         )
 
         strike_rows = []
         for strike, grp in agg.groupby("strike"):
-            lookup = dict(zip(grp["expiry"], grp["voi"]))
-            voi_series = [_round(float(lookup.get(e, 0.0)), 3) for e in exp_list]
-            strike_rows.append({"strike": _round(float(strike), 0), "voi": voi_series})
+            lookup = dict(zip(grp["expiry"], grp[metric_col]))
+            voi_series = []
+            for e in exp_list:
+                value = lookup.get(e)
+                if value is None or pd.isna(value) or value <= 0:
+                    voi_series.append(None)
+                else:
+                    voi_series.append(_round(float(value), decimals))
+            if any(v is not None for v in voi_series):
+                strike_rows.append({"strike": _round(float(strike), 0), "voi": voi_series})
         strike_rows.sort(key=lambda x: x["strike"])
+        if not strike_rows:
+            continue
 
-        out[ticker] = {"expiries": expiries_js, "strikes": strike_rows}
+        out[ticker] = {
+            "metric": metric_label,
+            "decimals": decimals,
+            "expiries": expiries_js,
+            "strikes": strike_rows,
+        }
     return out
 
 
-def _latest_spot_map() -> dict[str, float]:
-    """Most-recent adj_close per ticker, used as the "spot" anchor for
-    chain strike filtering."""
+def _latest_spot_map(as_of: date) -> dict[str, float]:
+    """Latest adj_close on or before as_of, used as the chain spot anchor."""
     p = pd.read_parquet(PRICES_PARQUET)
     p["date"] = pd.to_datetime(p["date"])
-    last = (p.sort_values("date").groupby("ticker").tail(1))
-    return dict(zip(last["ticker"], last["adj_close"]))
+    spots: dict[str, float] = {}
+    for ticker in sorted(p["ticker"].dropna().unique()):
+        spot = latest_adj_close_on_or_before(p, str(ticker), as_of)
+        if spot is not None:
+            spots[str(ticker)] = spot
+    return spots
 
 
 def build_form4_map() -> dict[str, list[dict]]:
@@ -314,17 +365,22 @@ def build_real_data_iife(
 
 _IIFE_START = "(function () {\n  function mulberry32"
 _IIFE_END = "})();"
+_BAKED_IIFE_MARKER = "// Real data baked in by scripts/generate_dashboard_html.py."
 
 
 def patch_html(src: str, new_iife: str) -> str:
     """Replace the synthetic data IIFE with the baked-data IIFE."""
     start = src.find(_IIFE_START)
     if start == -1:
-        raise RuntimeError(
-            "Could not locate the synthetic IIFE start marker in the template. "
-            "The script was written against the initial 1501-line template; the "
-            "HTML may have been re-edited by hand. Regenerate the template."
-        )
+        marker = src.find(_BAKED_IIFE_MARKER)
+        if marker == -1:
+            raise RuntimeError(
+                "Could not locate either the synthetic IIFE or baked-data marker "
+                "in the HTML template."
+            )
+        start = src.rfind("(function () {", 0, marker)
+        if start == -1:
+            raise RuntimeError("Could not locate baked-data IIFE start.")
     # Find the first `})();` after the start that's balanced with the outer
     # IIFE. The synthetic IIFE ends at the first `})();` at column 0 in this
     # template, so a naive find from `start` works.
@@ -348,7 +404,7 @@ def main() -> int:
 
     alerts = build_alerts_records(as_of)
     print(f"  alerts: {len(alerts)} rows")
-    prices = build_prices_map()
+    prices = build_prices_map(as_of)
     print(f"  prices: {len(prices)} tickers, "
           f"{sum(len(v) for v in prices.values())} total price points")
     chains = build_chain_map(as_of)

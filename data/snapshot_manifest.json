@@ -1,0 +1,36 @@
+{
+  "snapshot_date": "2026-04-21",
+  "generated_at_utc": "2026-04-30T00:00:00Z",
+  "purpose": "Committed baseline snapshot so a fresh clone can verify and run the dashboard without the slow first EDGAR insider pull.",
+  "counts": {
+    "alerts_rows": 101,
+    "factors_rows": 101,
+    "options_signals_rows": 101,
+    "insider_signals_rows": 101,
+    "prices_rows": 50500,
+    "fundamentals_rows": 101,
+    "vix_rows": 252,
+    "ff_rows": 15770,
+    "universe_rows": 101,
+    "chain_files": 101,
+    "form4_files": 96,
+    "form4_rows": 25261,
+    "static_html_min_bytes": 1000000
+  },
+  "required_files": [
+    "NDX Alert Desk.html",
+    "data/alerts/{date}.parquet",
+    "data/factors/{date}.parquet",
+    "data/options_signals/{date}.parquet",
+    "data/insider_signals/{date}.parquet",
+    "data/prices.parquet",
+    "data/fundamentals.parquet",
+    "data/vix.parquet",
+    "data/ff.parquet",
+    "data/universe.parquet",
+    "data/chains/{date}",
+    "data/form4",
+    "scripts/export_newsletter.py",
+    "src/newsletter_export.py"
+  ]
+}

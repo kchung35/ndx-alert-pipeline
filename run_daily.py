@@ -42,6 +42,16 @@ def main() -> int:
     parser.add_argument("--skip-options", action="store_true")
     parser.add_argument("--skip-edgar", action="store_true")
     parser.add_argument("--skip-ff", action="store_true")
+    parser.add_argument(
+        "--export-newsletter",
+        action="store_true",
+        help="Write a timestamped local newsletter package after alerts are built.",
+    )
+    parser.add_argument(
+        "--export-no-png",
+        action="store_true",
+        help="When used with --export-newsletter, skip optional dashboard PNG rendering.",
+    )
     parser.add_argument("--edgar-lookback-days", type=int, default=365)
     args = parser.parse_args()
 
@@ -123,7 +133,11 @@ def main() -> int:
             tickers = load_universe()["ticker"].tolist()
             for t in tickers:
                 try:
-                    df = fetch_form4_for_ticker(t, lookback_days=args.edgar_lookback_days)
+                    df = fetch_form4_for_ticker(
+                        t,
+                        lookback_days=args.edgar_lookback_days,
+                        as_of=as_of,
+                    )
                     if not df.empty:
                         save_form4(t, df)
                 except Exception as exc:
@@ -150,6 +164,14 @@ def main() -> int:
     path = save_alerts(alerts, as_of)
     tiers = alerts["tier"].value_counts().to_dict()
     log.info("Alerts written to %s   tiers=%s", path, tiers)
+
+    if args.export_newsletter:
+        log.info("Exporting newsletter package")
+        from src.newsletter_export import export_newsletter
+        artifacts = export_newsletter(as_of, render_png=not args.export_no_png)
+        log.info("Newsletter EML written to %s", artifacts.eml)
+        log.info("Newsletter export directory: %s", artifacts.output_dir)
+        log.info("Dashboard PNG status: %s", artifacts.png_status)
     return 0
 
 

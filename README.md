@@ -58,7 +58,8 @@ metrics — see [src/options_signals.py](src/options_signals.py).)
 
 The repo ships with a full data snapshot for **2026-04-21** baked in (Form 4
 filings, option chains, prices, factor / options / insider panels, alerts).
-You can open the dashboard without running anything else.
+You can verify and open the dashboard without running the slow first EDGAR
+insider pull.
 
 ```bash
 # 1. Clone the repo
@@ -73,15 +74,33 @@ python3 -m venv .venv && source .venv/bin/activate    # macOS / Linux
 # 3. Install dependencies (Python 3.11 / 3.12 / 3.13)
 pip install -r requirements.txt
 
-# 4. Open the institutional dashboard — uses the baked-in 2026-04-21 data
+# 4. Verify the committed baseline snapshot
+python3 scripts/verify_snapshot.py --date 2026-04-21
+
+# 5. Open the institutional dashboard — uses the baked-in 2026-04-21 data
 streamlit run src/dashboard.py
 # -> http://localhost:8501
 ```
 
+### Turnkey reproducibility
+
+The committed `data/` directory is the reproducibility package, not a private
+database. It contains public SEC Form 4 filings, public yfinance snapshots,
+Ken French factors, and the pipeline outputs needed to reproduce the shipped
+dashboard. The SEC Form 4 cache lives in `data/form4/*.parquet` so a fresh
+clone does **not** need to spend an hour rebuilding the insider database.
+
+The manifest at `data/snapshot_manifest.json` records the expected row/file
+counts for the canonical `2026-04-21` snapshot. Run this after cloning or
+before submitting/pushing:
+
+```bash
+python3 scripts/verify_snapshot.py --date 2026-04-21
+```
+
 ### Optional — refresh for a newer date
 
-To pull fresh data for today (adds ~60 min for the EDGAR step, overwrites
-the committed parquets in place):
+To pull fresh data for today:
 
 ```bash
 # SEC requires a User-Agent with contact info for the EDGAR REST API
@@ -92,15 +111,27 @@ export SEC_USER_AGENT="Your Name your@email.com"       # macOS / Linux
 python3 run_daily.py
 ```
 
-You can also skip the slow steps once the repo's baseline is present:
+EDGAR refreshes are incremental by default. The pipeline lists recent Form 4s,
+skips accessions already present in `data/form4/{ticker}.parquet`, fetches only
+new XML filings, and merges/dedupes them into the cache. To update insiders
+only from the committed baseline:
+
+```bash
+python3 run_daily.py --skip-universe --skip-prices --skip-options --skip-ff
+```
+
+To intentionally re-download cached Form 4 XML for debugging:
+
+```bash
+python3 -m src.data_edgar --date 2026-04-21 --force-refetch
+```
+
+You can also recompute alerts from the committed panels without network:
 
 ```bash
 # Same alerts but recomputed (seconds, no network)
 python3 -m src.alert_engine --date 2026-04-21
 ```
-
-Subsequent runs for the same date re-read cached chains / Form 4s and
-take ~2 minutes.
 
 ## Preview the dashboard without running anything
 
@@ -148,13 +179,34 @@ section before committing real capital.
 | `python3 -m src.alert_engine --date YYYY-MM-DD`  | Rebuild alerts from existing panels |
 | `python3 -m src.backtest --start ... --end ...`  | Factor-only L/S backtest |
 | `python3 -m src.risk --date YYYY-MM-DD`          | VaR/CVaR on current alert book |
+| `python3 scripts/verify_snapshot.py --date YYYY-MM-DD` | Verify committed reproducibility snapshot |
+| `python3 scripts/export_newsletter.py --date YYYY-MM-DD` | Local email newsletter package + `.eml` draft |
 | `streamlit run src/dashboard.py`                 | Launch the dashboard |
+
+## Newsletter export
+
+The dashboard can package any alert snapshot into a send-ready local email
+draft. In Streamlit, use the **04 Export newsletter** section to generate
+`newsletter.html`, `newsletter.txt`, a copied static dashboard HTML file, an
+optional PNG dashboard snapshot, and `NDX Alert Snapshot.eml`.
+
+You can also run the exporter from the command line:
+
+```bash
+python3 scripts/export_newsletter.py --date 2026-04-21 --no-png
+```
+
+Exports are written under `exports/newsletters/` and are ignored by git. The
+`.eml` leaves recipients blank and never sends email.
 
 ## Tests
 
 ```bash
-# Unit tests (should be 68 passing)
-python3 -m pytest tests/ -v
+# Unit tests
+python3 -m pytest -q -p no:cacheprovider
+
+# Verify the committed turnkey snapshot
+python3 scripts/verify_snapshot.py --date 2026-04-21
 
 # 5-year multi-regime backtest validation of MOMENTUM_LONG
 python3 tests/validate_momentum_5y.py
@@ -198,10 +250,12 @@ ndx-alert-pipeline/
 │       ├── sec_identity.py           # SEC ticker -> CIK resolver
 │       └── ui_style.py               # "Deep Trading" design tokens + Plotly theme
 ├── tests/
-│   ├── test_*.py                     # 68 unit tests across the modules
+│   ├── test_*.py                     # unit tests across the modules
 │   ├── diagnose_issues.py            # investigate-before-fix diagnostic harness
 │   └── validate_momentum_5y.py       # multi-regime backtest validation
 └── data/
+    ├── README.md                     # committed data / cache notes
+    ├── snapshot_manifest.json        # expected counts for the baseline snapshot
     ├── constituents_ndx100.json      # NDX 100 constituents seed (ticker, company, sector)
     ├── market_caps_ndx100.json       # market cap seed (billions)
     ├── sec_company_tickers_cache.json # SEC CIK lookup cache

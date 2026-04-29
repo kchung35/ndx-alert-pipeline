@@ -83,7 +83,11 @@ def _get(url: str, timeout: int = 30) -> requests.Response:
 
 # ── filing list per CIK ─────────────────────────────────────────────────
 
-def list_form4_filings(cik: str, lookback_days: int = 365) -> list[dict]:
+def list_form4_filings(
+    cik: str,
+    lookback_days: int = 365,
+    as_of: date | None = None,
+) -> list[dict]:
     """Return list of {accession, filing_date, primary_doc} for recent Form 4s."""
     cik_padded = str(cik).strip().zfill(10)
     url = f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
@@ -94,7 +98,9 @@ def list_form4_filings(cik: str, lookback_days: int = 365) -> list[dict]:
     dates = recent.get("filingDate", [])
     docs = recent.get("primaryDocument", [])
 
-    cutoff = pd.Timestamp(date.today() - pd.Timedelta(days=lookback_days))
+    as_of_date = as_of or date.today()
+    as_of_ts = pd.Timestamp(as_of_date)
+    cutoff = as_of_ts - pd.Timedelta(days=lookback_days)
     out: list[dict] = []
     for i, form in enumerate(forms):
         if form != "4":
@@ -103,7 +109,7 @@ def list_form4_filings(cik: str, lookback_days: int = 365) -> list[dict]:
             fd = pd.Timestamp(dates[i])
         except Exception:
             continue
-        if fd < cutoff:
+        if fd < cutoff or fd > as_of_ts:
             continue
         out.append({
             "accession": accs[i],
@@ -265,18 +271,44 @@ def _fetch_form4_xml(cik: str, accession: str, primary_doc: str) -> bytes | None
     return None
 
 
-def fetch_form4_for_ticker(ticker: str, lookback_days: int = 365) -> pd.DataFrame:
+def _cached_accessions(ticker: str) -> set[str]:
+    """Return already persisted Form 4 accession IDs for incremental refresh."""
+    path = FORM4_DIR / f"{ticker}.parquet"
+    if not path.exists():
+        return set()
+    try:
+        existing = pd.read_parquet(path, columns=["accession"])
+    except Exception as exc:
+        logger.warning("%s: could not read cached accessions: %s", ticker, exc)
+        return set()
+    if "accession" not in existing.columns:
+        return set()
+    return set(existing["accession"].dropna().astype(str))
+
+
+def fetch_form4_for_ticker(
+    ticker: str,
+    lookback_days: int = 365,
+    as_of: date | None = None,
+    skip_cached: bool = True,
+) -> pd.DataFrame:
     cik = ticker_to_cik(ticker)
     if not cik:
         logger.warning("no CIK for %s", ticker)
         return pd.DataFrame(columns=_FORM4_COLS)
 
-    filings = list_form4_filings(cik, lookback_days=lookback_days)
-    logger.info("%s (CIK %s): %d Form 4 filings in %dd",
-                ticker, cik, len(filings), lookback_days)
+    filings = list_form4_filings(cik, lookback_days=lookback_days, as_of=as_of)
+    known = _cached_accessions(ticker) if skip_cached else set()
+    new_filings = [f for f in filings if str(f["accession"]) not in known]
+    skipped_cached = len(filings) - len(new_filings)
+    logger.info(
+        "%s (CIK %s): %d Form 4 filings in %dd through %s; %d cached, %d new",
+        ticker, cik, len(filings), lookback_days, as_of or date.today(),
+        skipped_cached, len(new_filings),
+    )
     all_rows: list[dict] = []
     missing_xml = 0
-    for f in filings:
+    for f in new_filings:
         xml = _fetch_form4_xml(cik, f["accession"], f["primary_doc"])
         if xml is None:
             missing_xml += 1
@@ -286,8 +318,8 @@ def fetch_form4_for_ticker(ticker: str, lookback_days: int = 365) -> pd.DataFram
         )
         all_rows.extend(rows)
     if missing_xml:
-        logger.warning("%s: %d/%d filings had no parsable XML",
-                       ticker, missing_xml, len(filings))
+        logger.warning("%s: %d/%d new filings had no parsable XML",
+                       ticker, missing_xml, len(new_filings))
     if not all_rows:
         return pd.DataFrame(columns=_FORM4_COLS)
     df = pd.DataFrame(all_rows)
@@ -320,10 +352,16 @@ def load_form4(ticker: str) -> pd.DataFrame:
 
 
 def main() -> int:
+    from src.trading_day import last_completed_trading_day
     parser = argparse.ArgumentParser(description="Pull NDX 100 Form 4 filings from EDGAR.")
+    parser.add_argument("--date", default=last_completed_trading_day().isoformat(),
+                        help="As-of date for the filing lookback window.")
     parser.add_argument("--lookback-days", type=int, default=365)
+    parser.add_argument("--force-refetch", action="store_true",
+                        help="Fetch XML for cached accessions too.")
     parser.add_argument("--tickers", nargs="*", help="Subset for debugging")
     args = parser.parse_args()
+    as_of = date.fromisoformat(args.date)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.tickers:
@@ -334,7 +372,12 @@ def main() -> int:
     total_rows = 0
     for t in tickers:
         try:
-            df = fetch_form4_for_ticker(t, lookback_days=args.lookback_days)
+            df = fetch_form4_for_ticker(
+                t,
+                lookback_days=args.lookback_days,
+                as_of=as_of,
+                skip_cached=not args.force_refetch,
+            )
         except Exception as exc:
             logger.warning("%s: failed %s", t, exc)
             continue

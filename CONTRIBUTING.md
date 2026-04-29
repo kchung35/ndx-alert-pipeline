@@ -52,7 +52,7 @@ git checkout -b feature/my-improvement
 
 # ... edit files in VS Code / PyCharm / whatever ...
 
-# Run the test suite before committing — 68 tests, should all pass
+# Run the test suite before committing — 74 tests, should all pass
 python3 -m pytest tests/
 
 # Commit small, descriptive chunks

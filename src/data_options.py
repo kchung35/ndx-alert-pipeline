@@ -5,8 +5,10 @@ stores one parquet per ticker per day under:
     data/chains/{YYYY-MM-DD}/{TICKER}.parquet
 
 Each row is a single option contract with columns:
-    ticker, side (call/put), expiry, strike, last_price, bid, ask, mid,
-    volume, open_interest, implied_volatility, contract_symbol, as_of_date
+    ticker, side (call/put), expiry, strike, last_trade_date, last_price,
+    bid, ask, mid, change, percent_change, volume, open_interest,
+    implied_volatility, in_the_money, contract_size, currency,
+    contract_symbol, as_of_date
 """
 
 from __future__ import annotations
@@ -28,8 +30,9 @@ CHAINS_ROOT = PROJECT_ROOT / "data" / "chains"
 
 _CHAIN_COLS = [
     "ticker", "side", "expiry", "strike",
-    "last_price", "bid", "ask", "mid",
-    "volume", "open_interest", "implied_volatility",
+    "last_trade_date", "last_price", "bid", "ask", "mid",
+    "change", "percent_change", "volume", "open_interest", "implied_volatility",
+    "in_the_money", "contract_size", "currency",
     "contract_symbol", "as_of_date",
 ]
 
@@ -68,12 +71,18 @@ def fetch_chain(ticker: str, as_of: date, max_expiries: int | None = None) -> pd
             out["expiry"] = exp
             out["as_of_date"] = as_of.isoformat()
             out = out.rename(columns={
+                "contractSymbol": "contract_symbol",
+                "lastTradeDate": "last_trade_date",
                 "lastPrice": "last_price",
                 "openInterest": "open_interest",
                 "impliedVolatility": "implied_volatility",
-                "contractSymbol": "contract_symbol",
+                "percentChange": "percent_change",
+                "inTheMoney": "in_the_money",
+                "contractSize": "contract_size",
             })
-            out["mid"] = (out["bid"].fillna(0) + out["ask"].fillna(0)) / 2.0
+            bid = pd.to_numeric(out.get("bid", 0.0), errors="coerce").fillna(0.0)
+            ask = pd.to_numeric(out.get("ask", 0.0), errors="coerce").fillna(0.0)
+            out["mid"] = (bid + ask) / 2.0
             # Keep only schema columns that exist; fill missing with NaN
             for col in _CHAIN_COLS:
                 if col not in out.columns:

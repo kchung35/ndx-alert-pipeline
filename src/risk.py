@@ -1,8 +1,8 @@
 """Risk metrics for the live alert book.
 
 Thin wrapper around src.lifted.analytics. Intentionally has no portfolio
-concept — "book" here just means today's set of open alerts, equal-weight
-in long/short.
+concept — "book" here just means today's actionable alert tiers, weighted
+by signal strength and direction.
 
 CLI:
     python3 -m src.risk --date YYYY-MM-DD
@@ -19,7 +19,14 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from src.alert_engine import load_alerts, TIER_BEARISH, TIER_BULLISH
+from src.alert_engine import (
+    load_alerts,
+    TIER_BEARISH,
+    TIER_BULLISH,
+    TIER_CONFLUENCE_BEAR,
+    TIER_CONFLUENCE_BULL,
+    TIER_MOMENTUM_LONG,
+)
 from src.data_prices import load_prices
 from src.lifted.analytics import (
     annualized_return, annualized_vol, conditional_var, historical_var,
@@ -28,24 +35,37 @@ from src.lifted.analytics import (
 
 logger = logging.getLogger(__name__)
 
+ACTIONABLE_TIER_WEIGHTS = {
+    TIER_BULLISH: 1.0,
+    TIER_MOMENTUM_LONG: 0.75,
+    TIER_CONFLUENCE_BULL: 0.5,
+    TIER_BEARISH: -1.0,
+    TIER_CONFLUENCE_BEAR: -0.5,
+}
+
 
 def book_returns(as_of: date) -> pd.Series:
-    """Equal-weight long/short daily returns over the past 2y based on alert signs."""
+    """Weighted daily returns over the past 2y based on actionable alert tiers."""
     alerts = load_alerts(as_of)
-    longs = alerts.loc[alerts["tier"] == TIER_BULLISH, "ticker"].tolist()
-    shorts = alerts.loc[alerts["tier"] == TIER_BEARISH, "ticker"].tolist()
-    if not longs and not shorts:
+    active = alerts.loc[alerts["tier"].isin(ACTIONABLE_TIER_WEIGHTS), ["ticker", "tier"]].copy()
+    if active.empty:
         return pd.Series(dtype=float)
+    active["weight"] = active["tier"].map(ACTIONABLE_TIER_WEIGHTS).astype(float)
 
     prices = load_prices()
     prices["date"] = pd.to_datetime(prices["date"])
     wide = prices.pivot(index="date", columns="ticker", values="adj_close").sort_index()
 
-    long_rets = wide[longs].pct_change().mean(axis=1) if longs else pd.Series(0, index=wide.index)
-    short_rets = wide[shorts].pct_change().mean(axis=1) if shorts else pd.Series(0, index=wide.index)
-    # L/S: long the bulls, short the bears
-    ls = long_rets - short_rets
-    return ls.dropna()
+    weights = active.set_index("ticker")["weight"]
+    weights = weights[weights.index.intersection(wide.columns)]
+    if weights.empty:
+        return pd.Series(dtype=float)
+
+    daily_rets = wide[weights.index].pct_change()
+    weighted_rets = daily_rets.mul(weights, axis=1)
+    gross_exposure = daily_rets.notna().mul(weights.abs(), axis=1).sum(axis=1)
+    book = weighted_rets.sum(axis=1).where(gross_exposure > 0) / gross_exposure.where(gross_exposure > 0)
+    return book.dropna()
 
 
 def risk_report(as_of: date, horizon_days: int = 20) -> dict:
