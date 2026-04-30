@@ -81,21 +81,39 @@ def _factor_z_snapshot(prices_wide: pd.DataFrame, fundamentals: pd.DataFrame,
     return z.dropna()
 
 
-def run_backtest(start: date, end: date, horizon_days: int = 20,
-                 decile: float = 0.10) -> dict:
-    prices_wide = _prices_wide()
-    fundamentals = load_fundamentals()
-    universe = load_universe()
-    tickers = [t for t in universe["ticker"].tolist() if t in prices_wide.columns]
-    prices_wide = prices_wide[tickers]
+def auto_valid_backtest_start(end: date, min_history_days: int = 260,
+                              prices_wide: pd.DataFrame | None = None) -> date:
+    """First monthly rebalance date with enough price history for 12-1 momentum."""
+    if prices_wide is None:
+        prices_wide = _prices_wide()
+    if prices_wide.empty:
+        raise RuntimeError("No price history available for backtest start selection")
 
+    end_ts = pd.Timestamp(end)
+    eligible_index = prices_wide.index[prices_wide.index <= end_ts]
+    if eligible_index.empty:
+        raise RuntimeError(f"No price history on or before {end}")
+
+    rebalances = _rebalance_dates(
+        prices_wide.index,
+        prices_wide.index.min(),
+        eligible_index.max(),
+    )
+    for ts in rebalances:
+        if len(prices_wide.loc[:ts]) >= min_history_days:
+            return ts.date()
+    raise RuntimeError(
+        f"No monthly rebalance date has {min_history_days} days of price history "
+        f"on or before {end}"
+    )
+
+
+def _backtest_returns(prices_wide: pd.DataFrame, fundamentals: pd.DataFrame,
+                      rebalance: list[pd.Timestamp], horizon_days: int,
+                      decile: float) -> pd.Series:
     daily_rets = prices_wide.pct_change()
-
-    rebalance = _rebalance_dates(prices_wide.index, pd.Timestamp(start), pd.Timestamp(end))
-    if not rebalance:
-        raise RuntimeError(f"No rebalance dates in {start}..{end}")
-
     all_ls_rets: list[pd.Series] = []
+
     for t0 in rebalance:
         z = _factor_z_snapshot(prices_wide, fundamentals, t0)
         z = z.dropna()
@@ -106,7 +124,7 @@ def run_backtest(start: date, end: date, horizon_days: int = 20,
         longs = z.nlargest(k).index.tolist()
         shorts = z.nsmallest(k).index.tolist()
 
-        # Hold for horizon_days trading days post rebalance
+        # Hold for horizon_days trading days post rebalance.
         try:
             loc = prices_wide.index.get_loc(t0)
         except KeyError:
@@ -118,18 +136,46 @@ def run_backtest(start: date, end: date, horizon_days: int = 20,
 
         long_r = window[longs].mean(axis=1)
         short_r = window[shorts].mean(axis=1)
-        ls = long_r - short_r
-        all_ls_rets.append(ls)
+        all_ls_rets.append(long_r - short_r)
 
     if not all_ls_rets:
-        return {"note": "no rebalance produced returns"}
+        return pd.Series(dtype=float)
 
     ls_series = pd.concat(all_ls_rets).sort_index()
-    # Drop duplicates from overlapping holding windows
-    ls_series = ls_series.groupby(ls_series.index).sum()
+    # Drop duplicates from overlapping holding windows by summing active sleeves.
+    return ls_series.groupby(ls_series.index).sum()
+
+
+def run_backtest_detail(start: date, end: date, horizon_days: int = 20,
+                        decile: float = 0.10) -> dict:
+    prices_wide = _prices_wide()
+    fundamentals = load_fundamentals()
+    universe = load_universe()
+    tickers = [t for t in universe["ticker"].tolist() if t in prices_wide.columns]
+    prices_wide = prices_wide[tickers]
+
+    rebalance = _rebalance_dates(prices_wide.index, pd.Timestamp(start), pd.Timestamp(end))
+    if not rebalance:
+        raise RuntimeError(f"No rebalance dates in {start}..{end}")
+
+    ls_series = _backtest_returns(prices_wide, fundamentals, rebalance, horizon_days, decile)
+    if ls_series.empty:
+        return {
+            "summary": {
+                "note": "no rebalance produced returns",
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "horizon_days": int(horizon_days),
+                "decile": float(decile),
+            },
+            "returns": ls_series,
+            "equity": pd.Series(dtype=float),
+            "drawdown": pd.Series(dtype=float),
+        }
 
     equity = (1 + ls_series).cumprod()
-    return {
+    drawdown = equity / equity.cummax() - 1
+    summary = {
         "rebalances": len(rebalance),
         "trading_days": int(len(ls_series)),
         "ann_return": annualized_return(ls_series),
@@ -138,7 +184,22 @@ def run_backtest(start: date, end: date, horizon_days: int = 20,
         "max_dd": max_drawdown(equity),
         "hit_rate": float((ls_series > 0).mean()),
         "final_equity_multiplier": float(equity.iloc[-1]),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "horizon_days": int(horizon_days),
+        "decile": float(decile),
     }
+    return {
+        "summary": summary,
+        "returns": ls_series,
+        "equity": equity,
+        "drawdown": drawdown,
+    }
+
+
+def run_backtest(start: date, end: date, horizon_days: int = 20,
+                 decile: float = 0.10) -> dict:
+    return run_backtest_detail(start, end, horizon_days, decile)["summary"]
 
 
 def main() -> int:

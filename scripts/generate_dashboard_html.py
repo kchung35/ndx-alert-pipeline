@@ -11,6 +11,7 @@ records sourced from the daily pipeline's parquet outputs:
     chains/{date}/{ticker}.parquet -> option snapshot surface per ticker
     form4/{ticker}.parquet        -> last 20 Form 4 transactions per ticker
     universe.parquet              -> ticker + company + sector + market cap
+    risk.py / performance_risk.py -> Performance & Risk metrics + validation gate
 
 The resulting HTML is fully self-contained (still opens by double-click)
 but reflects the pipeline state as of the specified date.
@@ -36,6 +37,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data_prices import latest_adj_close_on_or_before  # noqa: E402
+from src.performance_risk import options_history_validation_gate  # noqa: E402
+from src.risk import risk_report_detail  # noqa: E402
 
 DATA_DIR = PROJECT_ROOT / "data"
 ALERTS_DIR = DATA_DIR / "alerts"
@@ -58,6 +61,30 @@ def _round(v, n=4):
     if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
         return None
     return round(float(v), n)
+
+
+def _series_records(series: pd.Series, decimals: int = 6) -> list[dict]:
+    if series is None or series.empty:
+        return []
+    out = []
+    for idx, value in series.dropna().items():
+        out.append({
+            "date": pd.Timestamp(idx).strftime("%Y-%m-%d"),
+            "value": _round(value, decimals),
+        })
+    return out
+
+
+def _summary_records(summary: dict) -> dict:
+    out = {}
+    for key, value in summary.items():
+        if isinstance(value, (float, np.floating)):
+            out[key] = _round(value, 6)
+        elif isinstance(value, (int, np.integer)):
+            out[key] = int(value)
+        else:
+            out[key] = value
+    return out
 
 
 def _latest_available_date() -> date:
@@ -312,6 +339,37 @@ def available_dates() -> list[str]:
     return [d.isoformat() for d in sorted(dates, reverse=True)]
 
 
+def _empty_performance_payload(note: str) -> dict:
+    return {"summary": {"note": note}, "equity": [], "drawdown": []}
+
+
+def build_performance_risk(as_of: date) -> dict:
+    """Alert-book risk and options-history validation payload."""
+    try:
+        risk = risk_report_detail(as_of, horizon_days=20)
+        risk_payload = {
+            "summary": _summary_records(risk["summary"]),
+            "equity": _series_records(risk["equity"]),
+            "drawdown": _series_records(risk["drawdown"]),
+        }
+    except Exception as exc:
+        risk_payload = _empty_performance_payload(str(exc))
+
+    validation = options_history_validation_gate(as_of, project_root=PROJECT_ROOT)
+    return {"risk": risk_payload, "validation": validation}
+
+
+def build_performance_risk_map(date_strs: list[str]) -> dict[str, dict]:
+    """Performance/risk payloads keyed by each selectable as-of date."""
+    out: dict[str, dict] = {}
+    for date_str in date_strs:
+        try:
+            out[date_str] = build_performance_risk(date.fromisoformat(date_str))
+        except ValueError:
+            continue
+    return out
+
+
 # ── HTML patch ────────────────────────────────────────────────────────
 
 def build_real_data_iife(
@@ -320,6 +378,7 @@ def build_real_data_iife(
     prices: dict[str, list[dict]],
     chains: dict[str, dict],
     form4: dict[str, list[dict]],
+    performance_risk_by_date: dict[str, dict],
     dates_available: list[str],
 ) -> str:
     """The replacement IIFE that wires real parquet data into window.DATA."""
@@ -330,6 +389,7 @@ def build_real_data_iife(
         "PRICES": prices,
         "CHAINS": chains,
         "FORM4": form4,
+        "PERFORMANCE_RISK": performance_risk_by_date,
     }
     payload_json = json.dumps(payload, separators=(",", ":"))
     return f"""(function () {{
@@ -357,6 +417,10 @@ def build_real_data_iife(
     }},
     getForm4(ticker, _insider_z) {{
       return BAKED.FORM4[ticker] || [];
+    }},
+    getPerformanceRisk(dateStr) {{
+      const key = dateStr || BAKED.AS_OF;
+      return BAKED.PERFORMANCE_RISK[key] || null;
     }},
   }};
 }})();
@@ -412,6 +476,23 @@ def main() -> int:
     form4 = build_form4_map()
     print(f"  form4:  {len(form4)} tickers, "
           f"{sum(len(v) for v in form4.values())} transactions")
+    # The standalone HTML is a single baked snapshot. Streamlit is the dynamic
+    # multi-date surface; exposing unbaked dates here would mix old selections
+    # with the current snapshot's prices, chains, and Form 4 detail.
+    dates_baked = [as_of.isoformat()]
+    performance_risk_by_date = build_performance_risk_map(dates_baked)
+    performance_risk = performance_risk_by_date.get(as_of.isoformat())
+    if performance_risk is None:
+        performance_risk = build_performance_risk(as_of)
+        performance_risk_by_date[as_of.isoformat()] = performance_risk
+    risk_note = performance_risk["risk"]["summary"].get("note")
+    gate = performance_risk["validation"]
+    print(
+        "  performance/risk: "
+        f"risk={'note' if risk_note else 'ok'}, "
+        f"options_gate={gate['status']} "
+        f"({gate['usable_days']}/{gate['min_days']} usable days)"
+    )
 
     src_html = HTML_PATH.read_text()
     new_iife = build_real_data_iife(
@@ -420,7 +501,8 @@ def main() -> int:
         prices=prices,
         chains=chains,
         form4=form4,
-        dates_available=available_dates(),
+        performance_risk_by_date=performance_risk_by_date,
+        dates_available=dates_baked,
     )
     new_html = patch_html(src_html, new_iife)
     HTML_PATH.write_text(new_html)

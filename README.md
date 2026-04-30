@@ -6,7 +6,8 @@ and SEC Form 4 insider transactions — agree on a directional view, plus
 a long-only tactical tier based on 3-month momentum.
 
 All data comes from free public sources (yfinance, SEC EDGAR, Ken French
-data library). No paid feeds. No portfolio concepts. No cross-dependencies.
+data library). No paid feeds. No portfolio management stack. No
+cross-dependencies.
 
 ## Architecture
 
@@ -33,6 +34,7 @@ flowchart LR
 
     DP -.-> BT([backtest.py])
     DP -.-> RSK([risk.py · VaR / CVaR])
+    RSK -.->|Performance & Risk| DB
 ```
 
 Plain-text fallback (ASCII only, aligns in any monospace viewer):
@@ -46,8 +48,8 @@ universe.py  +--> data_prices.py  --> factors.py --------+
              |                                           |                           v
              +--> data_ff.py      --> factors.py (FF) ---+                    dashboard.py (Streamlit)
 
-             prices  --> backtest.py
-                     --> risk.py (VaR / CVaR)
+             prices  --> backtest.py (CLI diagnostic)
+                     --> risk.py (VaR / CVaR) --> dashboard.py (05 Performance & Risk)
 ```
 
 See [workflow-1.png](workflow-1.png) for the original design diagram.
@@ -167,8 +169,26 @@ The pipeline assigns each of the 100 tickers to one of six tiers:
 | `CONFLUENCE_BEARISH` | Composite < −1.0, ≥2 of 3 components < −0.15, no strong disagreement | Short 0.5× weight |
 | `NO_ALERT`           | Everything else | Ignore |
 
-**Rebalance monthly. Hold 20 trading days.** See the "Strategy reliability"
-section before committing real capital.
+**Rebalance monthly. Hold 20 trading days.** Use the dashboard's
+**05 Performance & Risk** tab before treating any alert as tradeable.
+
+## Performance & Risk
+
+The dashboard's **05 Performance & Risk** tab shows the current actionable
+alert-book risk report. `src/risk.py` takes the current actionable tiers
+(`STRONG_*`, `MOMENTUM_LONG`, and `CONFLUENCE_*`), applies their tier weights,
+and reports VaR, CVaR, Sharpe, annualized volatility, and drawdown on the
+resulting equal-risk alert book.
+
+This is intentionally **not** presented as a full historical alert replay yet.
+The validation gate blocks replay until the repo has enough daily option-chain
+snapshots with sufficient chain coverage. Insider history is not the blocker:
+SEC Form 4 history can be rebuilt from EDGAR and is already cached under
+`data/form4/`.
+
+The static HTML stores baked risk curves, metrics, and validation-gate status
+from generation time. Streamlit recomputes the same risk analytics dynamically
+for the selected as-of date.
 
 ## Key CLI entry points
 
@@ -184,7 +204,7 @@ section before committing real capital.
 | `python3 -m src.data_edgar`                      | Pull Form 4 filings |
 | `python3 -m src.factors --date YYYY-MM-DD`       | Compute factor panel |
 | `python3 -m src.alert_engine --date YYYY-MM-DD`  | Rebuild alerts from existing panels |
-| `python3 -m src.backtest --start ... --end ...`  | Factor-only L/S backtest |
+| `python3 -m src.backtest --start ... --end ...`  | Experimental factor-only L/S diagnostic |
 | `python3 -m src.risk --date YYYY-MM-DD`          | VaR/CVaR on current alert book |
 | `python3 scripts/verify_snapshot.py --date YYYY-MM-DD` | Verify committed reproducibility snapshot |
 | `python3 scripts/export_newsletter.py --date YYYY-MM-DD` | Local email newsletter package + `.eml` draft |
@@ -245,7 +265,7 @@ ndx-alert-pipeline/
 │   ├── options_signals.py            # V/OI, IV skew, term structure, flow ratio - the six metrics
 │   ├── insider_signals.py            # cluster-weighted insider scoring
 │   ├── alert_engine.py               # composite + momentum + confluence tier assignment
-│   ├── backtest.py                   # walk-forward L/S backtest on factor composite
+│   ├── backtest.py                   # experimental walk-forward factor L/S diagnostic
 │   ├── risk.py                       # VaR / CVaR / Sharpe / drawdown
 │   ├── dashboard.py                  # single-page Streamlit dashboard
 │   ├── trading_day.py                # NY-timezone-aware last-completed-trading-day helper

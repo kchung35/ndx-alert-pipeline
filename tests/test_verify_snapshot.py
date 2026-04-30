@@ -73,7 +73,9 @@ def _make_snapshot(tmp_path: Path, *, alerts_rows: int = 2) -> Path:
     (tmp_path / "src").mkdir()
     (tmp_path / "src/newsletter_export.py").write_text("# placeholder\n", encoding="utf-8")
     (tmp_path / "NDX Alert Desk.html").write_text(
-        "<html><script>window.DATA = {}</script><body>04 Export newsletter</body></html>",
+        "<html><script>window.DATA = {getPerformanceRisk(){}}</script>"
+        "<body>04 Export newsletter 05 Performance & Risk "
+        "Historical replay validation gate</body></html>",
         encoding="utf-8",
     )
     return tmp_path

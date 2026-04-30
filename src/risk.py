@@ -44,16 +44,22 @@ ACTIONABLE_TIER_WEIGHTS = {
 }
 
 
-def book_returns(as_of: date) -> pd.Series:
-    """Weighted daily returns over the past 2y based on actionable alert tiers."""
+def book_returns(as_of: date, lookback_years: int = 2) -> pd.Series:
+    """Weighted trailing returns, as-of bounded, for actionable alert tiers."""
     alerts = load_alerts(as_of)
     active = alerts.loc[alerts["tier"].isin(ACTIONABLE_TIER_WEIGHTS), ["ticker", "tier"]].copy()
     if active.empty:
         return pd.Series(dtype=float)
     active["weight"] = active["tier"].map(ACTIONABLE_TIER_WEIGHTS).astype(float)
 
+    as_of_ts = pd.Timestamp(as_of)
+    start_ts = as_of_ts - pd.DateOffset(years=lookback_years)
+
     prices = load_prices()
     prices["date"] = pd.to_datetime(prices["date"])
+    prices = prices.loc[prices["date"] <= as_of_ts].copy()
+    if prices.empty:
+        return pd.Series(dtype=float)
     wide = prices.pivot(index="date", columns="ticker", values="adj_close").sort_index()
 
     weights = active.set_index("ticker")["weight"]
@@ -65,24 +71,42 @@ def book_returns(as_of: date) -> pd.Series:
     weighted_rets = daily_rets.mul(weights, axis=1)
     gross_exposure = daily_rets.notna().mul(weights.abs(), axis=1).sum(axis=1)
     book = weighted_rets.sum(axis=1).where(gross_exposure > 0) / gross_exposure.where(gross_exposure > 0)
-    return book.dropna()
+    return book.loc[book.index >= start_ts].dropna()
 
 
-def risk_report(as_of: date, horizon_days: int = 20) -> dict:
+def risk_report_detail(as_of: date, horizon_days: int = 20) -> dict:
     rets = book_returns(as_of)
     if rets.empty:
-        return {"note": "no alerts today -> empty book"}
+        return {
+            "summary": {"note": "no alerts today -> empty book"},
+            "returns": rets,
+            "equity": pd.Series(dtype=float),
+            "drawdown": pd.Series(dtype=float),
+        }
 
-    return {
+    equity = (1 + rets).cumprod()
+    drawdown = equity / equity.cummax() - 1
+    summary = {
         "n_days": int(len(rets)),
         "ann_return": annualized_return(rets),
         "ann_vol": annualized_vol(rets),
         "sharpe": sharpe_ratio(rets),
-        "max_dd": max_drawdown((1 + rets).cumprod()),
+        "max_dd": max_drawdown(equity),
         "var_95_1d_parametric": value_at_risk(rets, 0.95, 1),
         "var_95_20d_historical": historical_var(rets, 0.95, horizon_days),
         "cvar_95_20d": conditional_var(rets, 0.95, horizon_days),
+        "horizon_days": int(horizon_days),
     }
+    return {
+        "summary": summary,
+        "returns": rets,
+        "equity": equity,
+        "drawdown": drawdown,
+    }
+
+
+def risk_report(as_of: date, horizon_days: int = 20) -> dict:
+    return risk_report_detail(as_of, horizon_days)["summary"]
 
 
 def main() -> int:

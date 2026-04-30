@@ -2,11 +2,13 @@
 
 Deep-Trading aesthetic: Fraunces serif masthead, IBM Plex Sans body,
 JetBrains Mono for all numerics, aged-gold accent on a blue-black canvas.
-Loads parquet outputs from the daily pipeline and renders three sections:
+Loads parquet outputs from the daily pipeline and renders five sections:
 
     01  ALERT LEDGER          compact table, tier chips, micro-bar z-scores
     02  TICKER DEEP DIVE      2x2 grid: price | factors | options | insiders
     03  UNIVERSE CONSTELLATION scatter of factor_z vs options_z, color=insider_z
+    04  EXPORT NEWSLETTER     local refresh + email package workflow
+    05  PERFORMANCE & RISK    alert-book risk + options-history validation gate
 
 Run:  streamlit run src/dashboard.py
 """
@@ -24,6 +26,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 from src.data_prices import latest_adj_close_on_or_before
@@ -36,6 +39,8 @@ from src.lifted.ui_style import (
 from src.newsletter_export import (
     export_newsletter, load_newsletter_context, render_newsletter_text,
 )
+from src.performance_risk import options_history_validation_gate
+from src.risk import risk_report_detail
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ALERTS_DIR = PROJECT_ROOT / "data" / "alerts"
@@ -184,6 +189,205 @@ def _run_dashboard_refresh(
 
     st.cache_data.clear()
     return {"ok": True, "steps": steps}
+
+
+def _empty_performance_detail(note: str) -> dict:
+    return {
+        "summary": {"note": note},
+        "returns": pd.Series(dtype=float),
+        "equity": pd.Series(dtype=float),
+        "drawdown": pd.Series(dtype=float),
+    }
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_performance_risk(as_of: date) -> dict:
+    try:
+        risk = risk_report_detail(as_of, horizon_days=20)
+    except Exception as exc:
+        risk = _empty_performance_detail(str(exc))
+
+    gate = options_history_validation_gate(as_of, project_root=PROJECT_ROOT)
+    return {"risk": risk, "validation": gate}
+
+
+def _is_number(value) -> bool:
+    return value is not None and pd.notna(value)
+
+
+def _fmt_pct(value, decimals: int = 1) -> str:
+    return "—" if not _is_number(value) else f"{float(value):.{decimals}%}"
+
+
+def _fmt_num(value, decimals: int = 2, signed: bool = False) -> str:
+    if not _is_number(value):
+        return "—"
+    sign = "+" if signed else ""
+    return f"{float(value):{sign}.{decimals}f}"
+
+
+def _fmt_mult(value) -> str:
+    return "—" if not _is_number(value) else f"{float(value):.2f}×"
+
+
+def _metric_grid_html(items: list[tuple[str, str, str]]) -> str:
+    cells = []
+    for label, value, tone in items:
+        color = {
+            "pos": Colors.POSITIVE,
+            "neg": Colors.NEGATIVE,
+            "accent": Colors.ACCENT,
+        }.get(tone, Colors.TEXT_PRIMARY)
+        cells.append(
+            f"<div style='background:{Colors.BG_SURFACE_2};border:1px solid {Colors.BORDER_SUBTLE};"
+            f"padding:0.65rem 0.7rem;border-radius:2px;'>"
+            f"<div style='font-size:0.56rem;letter-spacing:0.14em;text-transform:uppercase;"
+            f"color:{Colors.TEXT_MUTED};margin-bottom:0.22rem;'>{escape(label)}</div>"
+            f"<div style='font-family:JetBrains Mono,monospace;font-size:1rem;font-weight:600;"
+            f"color:{color};'>{escape(value)}</div>"
+            f"</div>"
+        )
+    return (
+        "<div style='display:grid;grid-template-columns:repeat(4,minmax(0,1fr));"
+        "gap:0.65rem;margin:0.75rem 0 0.9rem 0;'>"
+        f"{''.join(cells)}</div>"
+    )
+
+
+def _validation_gate_html(gate: dict) -> str:
+    status = str(gate.get("status", "BLOCKED")).upper()
+    status_color = Colors.POSITIVE if status == "PASS" else Colors.ACCENT
+    recent = gate.get("recent_days") or []
+    recent_rows = []
+    for row in recent:
+        coverage = row.get("coverage")
+        coverage_txt = "—" if not _is_number(coverage) else f"{float(coverage):.0%}"
+        usable = "PASS" if row.get("usable") else "LOW"
+        usable_color = Colors.POSITIVE if row.get("usable") else Colors.TEXT_MUTED
+        recent_rows.append(
+            f"<tr>"
+            f"<td style='padding:0.32rem 0;border-bottom:1px solid {Colors.BORDER_SUBTLE};"
+            f"color:{Colors.TEXT_SECONDARY};'>{escape(str(row.get('date', '')))}</td>"
+            f"<td style='padding:0.32rem 0;border-bottom:1px solid {Colors.BORDER_SUBTLE};"
+            f"text-align:right;color:{Colors.TEXT_PRIMARY};'>{int(row.get('chain_files', 0))}</td>"
+            f"<td style='padding:0.32rem 0;border-bottom:1px solid {Colors.BORDER_SUBTLE};"
+            f"text-align:right;color:{Colors.TEXT_PRIMARY};'>{coverage_txt}</td>"
+            f"<td style='padding:0.32rem 0;border-bottom:1px solid {Colors.BORDER_SUBTLE};"
+            f"text-align:right;color:{usable_color};'>{usable}</td>"
+            f"</tr>"
+        )
+    recent_html = (
+        f"<table style='width:100%;border-collapse:collapse;font-family:JetBrains Mono,monospace;"
+        f"font-size:0.72rem;margin-top:0.65rem;'>"
+        f"<thead><tr>"
+        f"<th style='text-align:left;color:{Colors.TEXT_MUTED};font-weight:500;'>Date</th>"
+        f"<th style='text-align:right;color:{Colors.TEXT_MUTED};font-weight:500;'>Files</th>"
+        f"<th style='text-align:right;color:{Colors.TEXT_MUTED};font-weight:500;'>Coverage</th>"
+        f"<th style='text-align:right;color:{Colors.TEXT_MUTED};font-weight:500;'>Gate</th>"
+        f"</tr></thead><tbody>{''.join(recent_rows)}</tbody></table>"
+        if recent_rows else ""
+    )
+    return (
+        f"<div style='border:1px solid {Colors.BORDER_SUBTLE};background:{Colors.BG_SURFACE_1};"
+        f"padding:0.95rem 1.1rem;margin-bottom:0.75rem;'>"
+        f"<div style='display:flex;justify-content:space-between;gap:0.8rem;align-items:flex-start;'>"
+        f"<div>"
+        f"<div style='font-size:0.62rem;text-transform:uppercase;letter-spacing:0.16em;"
+        f"color:{Colors.TEXT_MUTED};margin-bottom:0.35rem;'>Historical replay validation gate</div>"
+        f"<div style='font-family:JetBrains Mono,monospace;color:{Colors.TEXT_PRIMARY};"
+        f"font-size:0.84rem;line-height:1.55;'>{escape(str(gate.get('message', '')))}</div>"
+        f"</div>"
+        f"<div style='border:1px solid {status_color};color:{status_color};font-family:JetBrains Mono,monospace;"
+        f"font-size:0.68rem;letter-spacing:0.1em;padding:0.18rem 0.45rem;border-radius:2px;'>"
+        f"{escape(status)}</div></div>"
+        f"<div style='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.55rem;"
+        f"margin-top:0.85rem;font-family:JetBrains Mono,monospace;'>"
+        f"<div style='background:{Colors.BG_SURFACE_2};border:1px solid {Colors.BORDER_SUBTLE};padding:0.55rem;'>"
+        f"<div style='font-size:0.55rem;letter-spacing:0.12em;text-transform:uppercase;color:{Colors.TEXT_MUTED};'>Usable days</div>"
+        f"<div style='font-size:1rem;color:{Colors.TEXT_PRIMARY};font-weight:600;'>{int(gate.get('usable_days', 0))}"
+        f"<span style='color:{Colors.TEXT_MUTED};font-size:0.76rem;'> / {int(gate.get('min_days', 0))}</span></div></div>"
+        f"<div style='background:{Colors.BG_SURFACE_2};border:1px solid {Colors.BORDER_SUBTLE};padding:0.55rem;'>"
+        f"<div style='font-size:0.55rem;letter-spacing:0.12em;text-transform:uppercase;color:{Colors.TEXT_MUTED};'>Min coverage</div>"
+        f"<div style='font-size:1rem;color:{Colors.TEXT_PRIMARY};font-weight:600;'>{float(gate.get('min_coverage', 0)):.0%}</div></div>"
+        f"</div>"
+        f"<div style='font-family:JetBrains Mono,monospace;font-size:0.7rem;color:{Colors.TEXT_MUTED};"
+        f"line-height:1.55;margin-top:0.75rem;'>{escape(str(gate.get('caveat', '')))}</div>"
+        f"{recent_html}"
+        f"</div>"
+    )
+
+
+def _performance_chart(equity: pd.Series, drawdown: pd.Series, title: str) -> go.Figure:
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.64, 0.36],
+    )
+    if not equity.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=equity.index,
+                y=equity.values,
+                mode="lines",
+                line=dict(color=Colors.ACCENT, width=1.5),
+                hovertemplate="%{x|%Y-%m-%d}  %{y:.2f}×<extra></extra>",
+                name="Equity",
+            ),
+            row=1,
+            col=1,
+        )
+    if not drawdown.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=drawdown.index,
+                y=drawdown.values * 100,
+                mode="lines",
+                fill="tozeroy",
+                line=dict(color=Colors.NEGATIVE, width=1),
+                fillcolor="rgba(224,104,104,0.16)",
+                hovertemplate="%{x|%Y-%m-%d}  %{y:.1f}%<extra></extra>",
+                name="Drawdown",
+            ),
+            row=2,
+            col=1,
+        )
+    fig.update_layout(**plotly_layout(
+        height=ChartHeight.MEDIUM,
+        showlegend=False,
+        margin=dict(t=18, b=30, l=48, r=12),
+        title=dict(
+            text=title,
+            font=dict(family="IBM Plex Sans, sans-serif",
+                      size=11, color=Colors.TEXT_MUTED),
+        ),
+    ))
+    fig.update_yaxes(
+        title_text="Equity",
+        gridcolor=Colors.BORDER_SUBTLE,
+        zeroline=False,
+        tickfont=dict(family="JetBrains Mono, monospace",
+                      color=Colors.TEXT_SECONDARY, size=10),
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(
+        title_text="DD %",
+        gridcolor=Colors.BORDER_SUBTLE,
+        zeroline=True,
+        zerolinecolor=Colors.BORDER_DEFAULT,
+        tickfont=dict(family="JetBrains Mono, monospace",
+                      color=Colors.TEXT_SECONDARY, size=10),
+        row=2,
+        col=1,
+    )
+    fig.update_xaxes(
+        gridcolor=Colors.BORDER_SUBTLE,
+        tickfont=dict(family="JetBrains Mono, monospace",
+                      color=Colors.TEXT_SECONDARY, size=10),
+    )
+    return fig
 
 
 # ── Date + gate ──────────────────────────────────────────────────────
@@ -1049,3 +1253,67 @@ if preview_ctx is not None:
                     mime=mime,
                     key=f"download-{path.name}",
                 )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 05  PERFORMANCE & RISK
+# ─────────────────────────────────────────────────────────────────────
+
+st.markdown(
+    "<h2><span class='section-num'>05</span>Performance & Risk</h2>",
+    unsafe_allow_html=True,
+)
+
+perf = _load_performance_risk(sel)
+risk_detail = perf["risk"]
+validation_gate = perf["validation"]
+risk_summary = risk_detail.get("summary", {})
+
+risk_col, gate_col = st.columns([1.35, 0.85])
+
+with risk_col:
+    st.markdown(
+        f"""
+        <div style='border:1px solid {Colors.BORDER_SUBTLE};background:{Colors.BG_SURFACE_1};
+                    padding:0.95rem 1.1rem;margin-bottom:0.75rem;'>
+          <div style='font-size:0.62rem;text-transform:uppercase;letter-spacing:0.16em;
+                      color:{Colors.TEXT_MUTED};margin-bottom:0.35rem;'>Current actionable alert book</div>
+          <div style='font-family:JetBrains Mono,monospace;color:{Colors.TEXT_PRIMARY};
+                      font-size:0.86rem;line-height:1.55;'>
+            tier-weighted equal-risk book · 20 trading-day horizon
+          </div>
+          <div style='font-family:JetBrains Mono,monospace;color:{Colors.TEXT_MUTED};
+                      font-size:0.7rem;line-height:1.55;margin-top:0.55rem;'>
+            This is not a full historical alert replay. Replay stays blocked until the
+            option snapshot archive passes the validation gate.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if "note" in risk_summary:
+        st.info(risk_summary["note"])
+    else:
+        st.html(_metric_grid_html([
+            ("Ann return", _fmt_pct(risk_summary.get("ann_return")), "pos"
+             if _is_number(risk_summary.get("ann_return")) and risk_summary["ann_return"] >= 0 else "neg"),
+            ("Ann vol", _fmt_pct(risk_summary.get("ann_vol")), ""),
+            ("Sharpe", _fmt_num(risk_summary.get("sharpe"), 2), "accent"),
+            ("Max DD", _fmt_pct(risk_summary.get("max_dd")), "neg"),
+            ("1d VaR 95", _fmt_pct(risk_summary.get("var_95_1d_parametric")), "neg"),
+            ("20d VaR 95", _fmt_pct(risk_summary.get("var_95_20d_historical")), "neg"),
+            ("20d CVaR 95", _fmt_pct(risk_summary.get("cvar_95_20d")), "neg"),
+            ("Days", f"{int(risk_summary.get('n_days', 0)):,}", ""),
+        ]))
+        st.plotly_chart(
+            _performance_chart(
+                risk_detail["equity"],
+                risk_detail["drawdown"],
+                "Alert-book equity and drawdown",
+            ),
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
+
+with gate_col:
+    st.html(_validation_gate_html(validation_gate))

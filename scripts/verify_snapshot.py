@@ -94,7 +94,15 @@ def verify_snapshot(
         raise SnapshotVerificationError(
             "Static HTML is smaller than expected; baked data may be missing"
         )
-    for needle in ("window.DATA", "04", "Export newsletter"):
+    for needle in (
+        "window.DATA",
+        "04",
+        "Export newsletter",
+        "05",
+        "Performance & Risk",
+        "Historical replay validation gate",
+        "getPerformanceRisk",
+    ):
         if needle not in html_text:
             raise SnapshotVerificationError(f"Static HTML missing marker: {needle}")
     messages.append(f"static HTML bytes: {html_path.stat().st_size}")
