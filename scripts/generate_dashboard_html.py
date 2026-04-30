@@ -17,7 +17,7 @@ but reflects the pipeline state as of the specified date.
 
 Run:
     python3 scripts/generate_dashboard_html.py
-    python3 scripts/generate_dashboard_html.py --date 2026-04-21
+    python3 scripts/generate_dashboard_html.py --date 2026-04-29
 """
 
 from __future__ import annotations

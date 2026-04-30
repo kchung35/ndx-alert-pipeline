@@ -2,8 +2,8 @@
 
 Examples:
     python3 scripts/export_newsletter.py
-    python3 scripts/export_newsletter.py --date 2026-04-21
-    python3 scripts/export_newsletter.py --date 2026-04-21 --no-png
+    python3 scripts/export_newsletter.py --date 2026-04-29
+    python3 scripts/export_newsletter.py --date 2026-04-29 --no-png
 """
 
 from __future__ import annotations

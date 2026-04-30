@@ -5,6 +5,7 @@ Uses a synthetic chain so the test is deterministic and doesn't hit Yahoo.
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import date
 from pathlib import Path
@@ -227,9 +228,14 @@ def test_missing_oi_does_not_create_fake_extreme_score():
 
 
 def test_current_snapshot_panel_has_quality_columns():
-    if not Path("data/chains/2026-04-21").exists():
+    manifest_path = Path("data/snapshot_manifest.json")
+    if not manifest_path.exists():
+        pytest.skip("snapshot manifest is not present")
+    snapshot_date = json.loads(manifest_path.read_text())["snapshot_date"]
+    as_of = date.fromisoformat(snapshot_date)
+    if not Path(f"data/chains/{snapshot_date}").exists():
         pytest.skip("current snapshot data is not present")
-    panel = compute_options_panel(date(2026, 4, 21))
+    panel = compute_options_panel(as_of)
     required = {
         "options_z", "options_z_raw", "options_quality", "options_coverage",
         "flow_score", "skew_score", "vol_stress_score",

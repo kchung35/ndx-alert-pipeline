@@ -4,7 +4,7 @@ This is a local integrity check for the baked demo/cache data. It does not
 fetch network data.
 
 Usage:
-    python3 scripts/verify_snapshot.py --date 2026-04-21
+    python3 scripts/verify_snapshot.py --date 2026-04-29
 """
 
 from __future__ import annotations

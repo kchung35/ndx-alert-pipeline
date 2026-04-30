@@ -56,7 +56,7 @@ metrics — see [src/options_signals.py](src/options_signals.py).)
 
 ## Quickstart (turnkey — no data fetch required)
 
-The repo ships with a full data snapshot for **2026-04-21** baked in (Form 4
+The repo ships with a full data snapshot for **2026-04-29** baked in (Form 4
 filings, option chains, prices, factor / options / insider panels, alerts).
 You can verify and open the dashboard without running the slow first EDGAR
 insider pull.
@@ -75,9 +75,9 @@ python3 -m venv .venv && source .venv/bin/activate    # macOS / Linux
 pip install -r requirements.txt
 
 # 4. Verify the committed baseline snapshot
-python3 scripts/verify_snapshot.py --date 2026-04-21
+python3 scripts/verify_snapshot.py --date 2026-04-29
 
-# 5. Open the institutional dashboard — uses the baked-in 2026-04-21 data
+# 5. Open the institutional dashboard — uses the baked-in 2026-04-29 data
 streamlit run src/dashboard.py
 # -> http://localhost:8501
 ```
@@ -91,11 +91,11 @@ dashboard. The SEC Form 4 cache lives in `data/form4/*.parquet` so a fresh
 clone does **not** need to spend an hour rebuilding the insider database.
 
 The manifest at `data/snapshot_manifest.json` records the expected row/file
-counts for the canonical `2026-04-21` snapshot. Run this after cloning or
+counts for the canonical `2026-04-29` snapshot. Run this after cloning or
 before submitting/pushing:
 
 ```bash
-python3 scripts/verify_snapshot.py --date 2026-04-21
+python3 scripts/verify_snapshot.py --date 2026-04-29
 ```
 
 ### Optional — refresh for a newer date
@@ -111,6 +111,13 @@ export SEC_USER_AGENT="Your Name your@email.com"       # macOS / Linux
 python3 run_daily.py
 ```
 
+You can also use the **04 Export newsletter** section in Streamlit as a local
+refresh surface. The "Fetch data / rebuild" button runs the same pipeline,
+optionally includes incremental EDGAR, and can regenerate `NDX Alert Desk.html`.
+The standalone HTML file is browser-only, so its refresh controls copy commands
+or open Streamlit; it cannot fetch yfinance/SEC data or write parquet files by
+itself.
+
 EDGAR refreshes are incremental by default. The pipeline lists recent Form 4s,
 skips accessions already present in `data/form4/{ticker}.parquet`, fetches only
 new XML filings, and merges/dedupes them into the cache. To update insiders
@@ -123,14 +130,14 @@ python3 run_daily.py --skip-universe --skip-prices --skip-options --skip-ff
 To intentionally re-download cached Form 4 XML for debugging:
 
 ```bash
-python3 -m src.data_edgar --date 2026-04-21 --force-refetch
+python3 -m src.data_edgar --date 2026-04-29 --force-refetch
 ```
 
 You can also recompute alerts from the committed panels without network:
 
 ```bash
 # Same alerts but recomputed (seconds, no network)
-python3 -m src.alert_engine --date 2026-04-21
+python3 -m src.alert_engine --date 2026-04-29
 ```
 
 ## Preview the dashboard without running anything
@@ -193,7 +200,7 @@ optional PNG dashboard snapshot, and `NDX Alert Snapshot.eml`.
 You can also run the exporter from the command line:
 
 ```bash
-python3 scripts/export_newsletter.py --date 2026-04-21 --no-png
+python3 scripts/export_newsletter.py --date 2026-04-29 --no-png
 ```
 
 Exports are written under `exports/newsletters/` and are ignored by git. The
@@ -206,7 +213,7 @@ Exports are written under `exports/newsletters/` and are ignored by git. The
 python3 -m pytest -q -p no:cacheprovider
 
 # Verify the committed turnkey snapshot
-python3 scripts/verify_snapshot.py --date 2026-04-21
+python3 scripts/verify_snapshot.py --date 2026-04-29
 
 # 5-year multi-regime backtest validation of MOMENTUM_LONG
 python3 tests/validate_momentum_5y.py

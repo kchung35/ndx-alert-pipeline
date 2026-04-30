@@ -13,6 +13,9 @@ Run:  streamlit run src/dashboard.py
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from datetime import date, datetime
 from html import escape
 from pathlib import Path
@@ -44,6 +47,7 @@ CHAINS_ROOT = PROJECT_ROOT / "data" / "chains"
 FORM4_DIR = PROJECT_ROOT / "data" / "form4"
 UNIVERSE_PARQUET = PROJECT_ROOT / "data" / "universe.parquet"
 EXPORT_ROOT = PROJECT_ROOT / "exports" / "newsletters"
+REFRESH_TIMEOUT_SECONDS = 90 * 60
 
 
 st.set_page_config(page_title="NDX Alert Desk", layout="wide",
@@ -108,6 +112,78 @@ def _available_dates() -> list[date]:
         except ValueError:
             continue
     return sorted(out, reverse=True)
+
+
+def _tail(text: str, max_chars: int = 8000) -> str:
+    """Keep subprocess output readable inside Streamlit."""
+    if len(text) <= max_chars:
+        return text
+    return "... output truncated ...\n" + text[-max_chars:]
+
+
+def _run_dashboard_refresh(
+    as_of: date,
+    *,
+    include_edgar: bool,
+    sec_user_agent: str,
+    refresh_universe: bool,
+    refresh_prices: bool,
+    refresh_options: bool,
+    refresh_ff: bool,
+    regenerate_html: bool,
+) -> dict:
+    """Run the local pipeline from Streamlit and optionally rebuild static HTML."""
+    env = os.environ.copy()
+    if sec_user_agent.strip():
+        env["SEC_USER_AGENT"] = sec_user_agent.strip()
+    if include_edgar and not env.get("SEC_USER_AGENT", "").strip():
+        raise ValueError("SEC_USER_AGENT is required when EDGAR refresh is enabled.")
+
+    cmd = [sys.executable, str(PROJECT_ROOT / "run_daily.py"), "--date", as_of.isoformat()]
+    if not refresh_universe:
+        cmd.append("--skip-universe")
+    if not refresh_prices:
+        cmd.append("--skip-prices")
+    if not refresh_options:
+        cmd.append("--skip-options")
+    if not include_edgar:
+        cmd.append("--skip-edgar")
+    if not refresh_ff:
+        cmd.append("--skip-ff")
+
+    steps = []
+    run_result = subprocess.run(
+        cmd,
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=REFRESH_TIMEOUT_SECONDS,
+    )
+    steps.append(("pipeline", cmd, run_result.returncode, run_result.stdout, run_result.stderr))
+    if run_result.returncode != 0:
+        return {"ok": False, "steps": steps}
+
+    if regenerate_html:
+        html_cmd = [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "generate_dashboard_html.py"),
+            "--date",
+            as_of.isoformat(),
+        ]
+        html_result = subprocess.run(
+            html_cmd,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15 * 60,
+        )
+        steps.append(("static-html", html_cmd, html_result.returncode, html_result.stdout, html_result.stderr))
+        if html_result.returncode != 0:
+            return {"ok": False, "steps": steps}
+
+    st.cache_data.clear()
+    return {"ok": True, "steps": steps}
 
 
 # ── Date + gate ──────────────────────────────────────────────────────
@@ -815,6 +891,86 @@ st.markdown(
     "<h2><span class='section-num'>04</span>Export newsletter</h2>",
     unsafe_allow_html=True,
 )
+
+st.markdown(
+    f"""
+    <div style='border:1px solid {Colors.BORDER_SUBTLE};background:{Colors.BG_SURFACE_1};
+                padding:0.95rem 1.1rem;margin-bottom:0.9rem;'>
+      <div style='font-size:0.62rem;text-transform:uppercase;letter-spacing:0.16em;
+                  color:{Colors.TEXT_MUTED};margin-bottom:0.35rem;'>Local data refresh</div>
+      <div style='font-family:JetBrains Mono,monospace;color:{Colors.TEXT_PRIMARY};
+                  font-size:0.86rem;line-height:1.55;'>
+        Fetches data into local parquet files, recomputes signals, and optionally rebuilds
+        <span style='color:{Colors.ACCENT};'>NDX Alert Desk.html</span>.
+      </div>
+      <div style='font-family:JetBrains Mono,monospace;color:{Colors.TEXT_MUTED};
+                  font-size:0.7rem;margin-top:0.55rem;'>
+        Static file exports cannot run Python or write data; use this Streamlit control
+        or the CLI for real refreshes.
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+refresh_col1, refresh_col2, refresh_col3 = st.columns([0.8, 1.1, 1.1])
+with refresh_col1:
+    refresh_date = st.date_input("Refresh date", value=sel)
+    refresh_clicked = st.button("Fetch data / rebuild", type="secondary")
+with refresh_col2:
+    refresh_universe = st.checkbox("Refresh universe", value=False)
+    refresh_prices = st.checkbox("Refresh prices + fundamentals + VIX", value=True)
+    refresh_options = st.checkbox("Refresh options chains", value=True)
+with refresh_col3:
+    refresh_ff = st.checkbox("Refresh Fama-French factors", value=True)
+    include_edgar = st.checkbox(
+        "Include incremental EDGAR Form 4",
+        value=bool(os.environ.get("SEC_USER_AGENT", "").strip()),
+    )
+    regenerate_html = st.checkbox("Regenerate static HTML", value=True)
+
+sec_user_agent = ""
+if include_edgar:
+    sec_user_agent = st.text_input(
+        "SEC_USER_AGENT",
+        value=os.environ.get("SEC_USER_AGENT", ""),
+        placeholder="Your Name your@email.com",
+        help="Required by SEC EDGAR. This is contact metadata, not a password.",
+    )
+
+if refresh_clicked:
+    with st.spinner("Running local refresh. This can take several minutes for options chains."):
+        try:
+            refresh_result = _run_dashboard_refresh(
+                refresh_date,
+                include_edgar=include_edgar,
+                sec_user_agent=sec_user_agent,
+                refresh_universe=refresh_universe,
+                refresh_prices=refresh_prices,
+                refresh_options=refresh_options,
+                refresh_ff=refresh_ff,
+                regenerate_html=regenerate_html,
+            )
+        except subprocess.TimeoutExpired as exc:
+            st.error(f"Refresh timed out after {exc.timeout} seconds.")
+            refresh_result = None
+        except Exception as exc:
+            st.error(f"Refresh failed before launch: {exc}")
+            refresh_result = None
+
+    if refresh_result is not None:
+        if refresh_result["ok"]:
+            st.success(
+                "Refresh completed. Reload the page or choose the new date from the date selector."
+            )
+        else:
+            st.error("Refresh command failed. See the command output below.")
+
+        for label, cmd, returncode, stdout, stderr in refresh_result["steps"]:
+            with st.expander(f"{label} · exit {returncode}", expanded=returncode != 0):
+                st.code(" ".join(str(part) for part in cmd), language="bash")
+                combined = "\n".join(part for part in (_tail(stdout), _tail(stderr)) if part)
+                st.code(combined or "(no output)", language="text")
 
 try:
     preview_ctx = load_newsletter_context(sel, project_root=PROJECT_ROOT)

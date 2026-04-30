@@ -1,13 +1,13 @@
 {
-  "snapshot_date": "2026-04-21",
-  "generated_at_utc": "2026-04-30T00:00:00Z",
+  "snapshot_date": "2026-04-29",
+  "generated_at_utc": "2026-04-29T23:11:46Z",
   "purpose": "Committed baseline snapshot so a fresh clone can verify and run the dashboard without the slow first EDGAR insider pull.",
   "counts": {
     "alerts_rows": 101,
     "factors_rows": 101,
     "options_signals_rows": 101,
     "insider_signals_rows": 101,
-    "prices_rows": 50500,
+    "prices_rows": 50403,
     "fundamentals_rows": 101,
     "vix_rows": 252,
     "ff_rows": 15770,
